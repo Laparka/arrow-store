@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "CommonJS",
+    "importHelpers": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "outDir": "lib",
+    "declaration": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "downlevelIteration": true,
+    "strict": true,
+    "suppressImplicitAnyIndexErrors": true,
+    "allowJs": true
+  },
+  "all": true,
+  "exclude": ["node_modules", "lib"]
+}

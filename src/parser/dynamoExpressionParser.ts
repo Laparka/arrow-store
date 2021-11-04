@@ -6,7 +6,10 @@ import {
     GroupNode,
     ObjectAccessorNode,
     ParserNode,
-    LambdaExpressionNode, ParameterNode, NumberValueNode, FunctionNode
+    LambdaExpressionNode,
+    NumberValueNode,
+    FunctionNode,
+    InverseNode
 } from "./nodes";
 
 type NodeIterator = {
@@ -40,7 +43,7 @@ export default class DynamoDBExpressionParser {
         const token = this._getCurrentToken(iterator);
         if (token.tokenType === 'Or') {
             iterator.index++;
-            const right = this._lambda(iterator);
+            const right = this._or(iterator);
             return new BooleanOperationNode('Or', left, right)
         }
 
@@ -52,7 +55,7 @@ export default class DynamoDBExpressionParser {
         const token = this._getCurrentToken(iterator);
         if (token.tokenType === 'And') {
             iterator.index++;
-            const right = this._lambda(iterator);
+            const right = this._and(iterator);
             return new BooleanOperationNode('And', left, right)
         }
 
@@ -85,7 +88,7 @@ export default class DynamoDBExpressionParser {
     }
 
     private _compare(iterator: NodeIterator): ParserNode {
-        const left = this._operand(iterator);
+        const left = this._inverse(iterator);
         const token = this._getCurrentToken(iterator);
         if (_comparisonTokens.findIndex(x => token.tokenType === x) >= 0) {
             iterator.index++;
@@ -94,6 +97,16 @@ export default class DynamoDBExpressionParser {
         }
 
         return left;
+    }
+
+    private _inverse(iterator: NodeIterator): ParserNode {
+        const token = this._getCurrentToken(iterator);
+        if (token.tokenType === 'Inverse') {
+            iterator.index++;
+            return new InverseNode(this._inverse(iterator));
+        }
+
+        return this._operand(iterator);
     }
 
     private _operand(iterator: NodeIterator): ParserNode {

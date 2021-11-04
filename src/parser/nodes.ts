@@ -1,28 +1,12 @@
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
 import {TokenType} from "../lexer/queryTokens";
 
-export type EXPRESSION_NODE_TYPE = "RootParameter" | "LambdaExpression" | "GroupExpression" | "Function"
+export type EXPRESSION_NODE_TYPE = "RootParameter" | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
     |"ObjectAccessor" | "BooleanOperation" | "CompareOperation"
     | "StringValue" | "NumberValue" | "BooleanValue" | "NullValue";
 
 export abstract class ParserNode {
     abstract get nodeType(): EXPRESSION_NODE_TYPE;
-}
-
-export class ParameterNode extends ParserNode {
-    private readonly _parameterName: string;
-    constructor(parameterName: string) {
-        super();
-        this._parameterName = parameterName;
-    }
-
-    get parameterName(): string {
-        return this._parameterName;
-    }
-
-    get nodeType(): EXPRESSION_NODE_TYPE {
-        return "RootParameter";
-    }
 }
 
 export class ObjectAccessorNode extends ParserNode {
@@ -188,6 +172,21 @@ export class NumberValueNode extends ParserNode {
     }
 }
 
+export class InverseNode extends ParserNode {
+    private readonly _body: ParserNode;
+    constructor(body: ParserNode) {
+        super();
+        this._body = body;
+    }
+
+    get body(): ParserNode {
+        return this._body;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "Inverse";
+    }
+}
 export class GroupNode extends ParserNode {
     private readonly _bodyNode: ParserNode;
     constructor(bodyNode: ParserNode) {

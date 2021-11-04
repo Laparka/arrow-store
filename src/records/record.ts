@@ -30,37 +30,7 @@ export abstract class RecordBase<TRecordId extends RecordQuery> implements Recor
 export type RecordType<TRecord extends Record> = new (...args: any[]) => TRecord;
 
 export type QueryResult<TRecord extends Record> = {
-    lastKey: RecordQueryBase<TRecord>;
+    lastKey: RecordQueryBase<TRecord> | null;
     total: number;
     records: ReadonlyArray<TRecord>;
-}
-
-export class PartitionKey implements RecordIdAttribute {
-    constructor(partitionValue: string) {
-        this.attributeName = 'Namespace';
-        this.attributeValue = partitionValue;
-    }
-
-    attributeName: string;
-    attributeValue: string;
-
-    get operator(): COMPARE_OPERATOR_TYPE {
-        return "Equals";
-    }
-}
-
-export class RangeKey implements RecordIdAttribute {
-    private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE;
-    constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE = 'Equals') {
-        this.attributeName = 'RecordId';
-        this.attributeValue = sortValue;
-        this._comparisonOperator = operator;
-    }
-
-    attributeName: string;
-    attributeValue: string;
-
-    get operator(): COMPARE_OPERATOR_TYPE {
-        return this._comparisonOperator;
-    }
 }

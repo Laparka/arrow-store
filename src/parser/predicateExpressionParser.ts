@@ -21,7 +21,7 @@ type NodeIterator = {
 
 const _comparisonTokens: TokenType[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterOrEquals', 'LessThan', 'LessThanOrEquals'];
 
-export default class DynamoDBExpressionParser {
+export default class PredicateExpressionParser {
     parse(query: string, tokens: ReadonlyArray<QueryToken>): ParserNode {
         return this._lambda({ query: query, index: 0, lastIndex: tokens.length - 1, tokens: tokens});
     }
@@ -117,7 +117,6 @@ export default class DynamoDBExpressionParser {
             {
                 iterator.index++;
                 return new StringValueNode(this._stringify(iterator.query, token), token.tokenType === 'FormatString');
-                break
             }
 
             case 'Number':{

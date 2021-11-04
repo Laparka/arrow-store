@@ -19,7 +19,7 @@ const tokenVisitors: TokenVisitor[] = [
     new NumberTokenVisitor(),
     new StringTokenVisitor()
 ];
-export class LambdaExpressionLexer {
+export default class LambdaPredicateLexer {
     tokenize(query: string): ReadonlyArray<QueryToken> {
         if (!query) {
             return [];

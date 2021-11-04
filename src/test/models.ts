@@ -1,4 +1,10 @@
-import {PartitionKey, RangeKey, RecordBase, RecordIdAttribute, RecordQueryBase, RecordType} from "../records/record";
+import {
+    COMPARE_OPERATOR_TYPE,
+    RecordBase,
+    RecordIdAttribute,
+    RecordQueryBase,
+    RecordType
+} from "../records/record";
 
 export class ClockRecordId extends RecordQueryBase<ClockRecord> {
     private readonly _clockId: string;
@@ -37,7 +43,6 @@ export class ClockRecord extends RecordBase<ClockRecordId> {
     }
 }
 
-
 export class ClocksQuery extends RecordQueryBase<ClockRecord> {
     getPrimaryKeys(): ReadonlyArray<RecordIdAttribute> {
         return [new PartitionKey('ClockRecord')];
@@ -47,4 +52,34 @@ export class ClocksQuery extends RecordQueryBase<ClockRecord> {
         return ClockRecord;
     }
 
+}
+
+export class PartitionKey implements RecordIdAttribute {
+    constructor(partitionValue: string) {
+        this.attributeName = 'Namespace';
+        this.attributeValue = partitionValue;
+    }
+
+    attributeName: string;
+    attributeValue: string;
+
+    get operator(): COMPARE_OPERATOR_TYPE {
+        return "Equals";
+    }
+}
+
+export class RangeKey implements RecordIdAttribute {
+    private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE;
+    constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE = 'Equals') {
+        this.attributeName = 'RecordId';
+        this.attributeValue = sortValue;
+        this._comparisonOperator = operator;
+    }
+
+    attributeName: string;
+    attributeValue: string;
+
+    get operator(): COMPARE_OPERATOR_TYPE {
+        return this._comparisonOperator;
+    }
 }

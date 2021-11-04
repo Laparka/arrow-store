@@ -1,4 +1,4 @@
-import {LambdaExpressionLexer} from "../lexer/lambdaExpressionLexer";
+import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import assert, {throws} from "assert";
 import {CLOCK_TYPE, ClockRecord} from "./models";
 
@@ -14,13 +14,13 @@ const iterate = () => {
 };
 
 test('Must return empty tokens', () => {
-    const lexer = new LambdaExpressionLexer();
+    const lexer = new LambdaPredicateLexer();
     assert(lexer.tokenize("").length === 0);
     assert(lexer.tokenize("           ").length === 0);
 });
 
 test('Must throw exception when not a lambda expression', () => {
-    const lexer = new LambdaExpressionLexer();
+    const lexer = new LambdaPredicateLexer();
     throws(() => lexer.tokenize("() => {return true;}"));
     throws(() => lexer.tokenize("function() {return true;}"));
 });
@@ -28,7 +28,7 @@ test('Must throw exception when not a lambda expression', () => {
 test('Must tokenize the lambda expression', () => {
     const clockType: CLOCK_TYPE = 'Analog';
     const theMostShittyBrand = 'Gar';
-    const lexer = new LambdaExpressionLexer();
+    const lexer = new LambdaPredicateLexer();
     const predicate: (value: ClockRecord) => boolean =
         x => !(x.brand === 'LG' || x.brand === `${theMostShittyBrand}\'ang`) &&
             ((x.clockType === 'Digital' && x.totalSegments !== 12) || x.clockType === clockType && x.clockModel === 'FTW\'1194' && x.brand === 'Fossil')

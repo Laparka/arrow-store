@@ -14,12 +14,14 @@ export class DynamoQuery<TRecord extends Record> {
         this._wherePredicates = [];
     }
 
-    where(predicate: (value: TRecord) => boolean) : DynamoQuery<TRecord> {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext) : DynamoQuery<TRecord> {
         if (!predicate) {
             throw Error(`where-clause predicate is missing`);
         }
 
-        this._wherePredicates.push(predicate);
+        const query = predicate.toString();
+        const tokens = DynamoQuery._Lexer.tokenize(query);
+        const expression = DynamoQuery._Parser.parse(query, tokens);
         return this;
     }
 

@@ -1,25 +1,30 @@
 import {QueryToken} from "./queryTokens";
-import TokenVisitor from "./visitors/tokenVisitor";
-import ObjectTokenVisitor from "./visitors/objectTokenVisitor";
-import GroupTokenVisitor from "./visitors/groupTokenVisitor";
-import NotTokenVisitor from "./visitors/notTokenVisitor";
-import StringTokenVisitor from "./visitors/stringTokenVisitor";
-import NumberTokenVisitor from "./visitors/numberTokenVisitor";
-import LambdaTokenVisitor from "./visitors/lambdaTokenVisitor";
-import LogicalOperatorTokenVisitor from "./visitors/logicalOperatorTokenVisitor";
-import BooleanOperatorTokenVisitor from "./visitors/booleanOperatorTokenVisitor";
+import {
+    BooleanOperatorTokenVisitor,
+    CommaTokenVisitor,
+    GroupTokenVisitor,
+    LambdaTokenVisitor,
+    LogicalOperatorTokenVisitor,
+    NotTokenVisitor,
+    NumberTokenVisitor,
+    ObjectTokenVisitor,
+    StringTokenVisitor,
+    TokenVisitor
+} from "./tokenVisitors";
 
-const tokenVisitors: TokenVisitor[] = [
-    new BooleanOperatorTokenVisitor(),
-    new GroupTokenVisitor(),
-    new LambdaTokenVisitor(),
-    new ObjectTokenVisitor(),
-    new LogicalOperatorTokenVisitor(),
-    new NotTokenVisitor(),
-    new NumberTokenVisitor(),
-    new StringTokenVisitor()
-];
 export default class LambdaPredicateLexer {
+    private static readonly _TokenVisitors: TokenVisitor[] = [
+        new BooleanOperatorTokenVisitor(),
+        new GroupTokenVisitor(),
+        new LambdaTokenVisitor(),
+        new ObjectTokenVisitor(),
+        new LogicalOperatorTokenVisitor(),
+        new NotTokenVisitor(),
+        new NumberTokenVisitor(),
+        new StringTokenVisitor(),
+        new CommaTokenVisitor()
+    ];
+
     tokenize(query: string): ReadonlyArray<QueryToken> {
         if (!query) {
             return [];
@@ -32,7 +37,7 @@ export default class LambdaPredicateLexer {
 
         const tokens: QueryToken[] = [];
         for(let i = 0; i < query.length;) {
-            const next = this._visit(query, i, tokens);
+            const next = LambdaPredicateLexer._visit(query, i, tokens);
             if (next <= i) {
                 throw Error(`Infinite loop detected`);
             }
@@ -43,13 +48,13 @@ export default class LambdaPredicateLexer {
         return tokens;
     }
 
-    private _visit(query: string, currentIndex: number, tokens: QueryToken[]): number {
+    private static _visit(query: string, currentIndex: number, tokens: QueryToken[]): number {
         if (!query || currentIndex > query.length) {
             return query.length;
         }
 
-        for(let i = 0; i < tokenVisitors.length; i++) {
-            const processedUpTo = tokenVisitors[i].visit(query, currentIndex, tokens);
+        for(let i = 0; i < this._TokenVisitors.length; i++) {
+            const processedUpTo = this._TokenVisitors[i].visit(query, currentIndex, tokens);
             if (processedUpTo === currentIndex) {
                 continue;
             }

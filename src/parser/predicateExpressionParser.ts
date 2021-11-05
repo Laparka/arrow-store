@@ -9,7 +9,7 @@ import {
     LambdaExpressionNode,
     NumberValueNode,
     FunctionNode,
-    InverseNode
+    InverseNode, ArgumentsNode
 } from "./nodes";
 
 type NodeIterator = {
@@ -106,7 +106,27 @@ export default class PredicateExpressionParser {
             return new InverseNode(this._inverse(iterator));
         }
 
-        return this._operand(iterator);
+        return this._comma(iterator);
+    }
+
+    private _comma(iterator: NodeIterator): ParserNode {
+        const left = this._operand(iterator);
+        const token = this._getCurrentToken(iterator);
+        if (token.tokenType === 'CommaSeparator') {
+            iterator.index++;
+            const nextArg = this._comma(iterator);
+            const args = [left];
+            if (nextArg.nodeType === 'Arguments') {
+                args.push(...(<ArgumentsNode>nextArg).arguments);
+            }
+            else{
+                args.push(nextArg);
+            }
+
+            return new ArgumentsNode(args);
+        }
+
+        return left;
     }
 
     private _operand(iterator: NodeIterator): ParserNode {

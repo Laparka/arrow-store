@@ -10,7 +10,6 @@ import {
     StringValueNode
 } from "../parser/nodes";
 
-
 test('Must parse a non-lambda expression', () =>{
     const lexer = new LambdaPredicateLexer();
     const parser = new PredicateExpressionParser();

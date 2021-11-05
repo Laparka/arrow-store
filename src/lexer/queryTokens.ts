@@ -1,4 +1,4 @@
-export type TokenType = 'GroupStart' | 'GroupEnd' | 'LambdaInitializer'
+export type TokenType = 'GroupStart' | 'GroupEnd' | 'LambdaInitializer' | 'CommaSeparator'
     | 'Object' | 'Inverse'
     | 'String' | 'FormatString' | 'Number' | 'Boolean'
     | 'Or' | 'And'

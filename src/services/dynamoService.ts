@@ -1,4 +1,4 @@
-import {Record, RecordBase, RecordQuery, RecordQueryBase} from "../records/record";
+import {Record, RecordQueryBase} from "../records/record";
 import {DynamoQuery} from "./dynamoQuery";
 
 export class DynamoService {

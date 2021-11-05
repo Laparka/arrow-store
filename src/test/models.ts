@@ -2,10 +2,12 @@ import {
     COMPARE_OPERATOR_TYPE,
     RecordBase,
     RecordIdAttribute,
-    RecordQueryBase,
-    RecordType
+    RecordQueryBase
 } from "../records/record";
 
+export const RECORD_TYPES = {
+    ClockRecord: Symbol.for("ClockRecord")
+};
 export class ClockRecordId extends RecordQueryBase<ClockRecord> {
     private readonly _clockId: string;
     constructor(clockId: string) {
@@ -17,8 +19,8 @@ export class ClockRecordId extends RecordQueryBase<ClockRecord> {
         return [new PartitionKey('ClockRecord'), new RangeKey(this._clockId)];
     }
 
-    getRecordType(): RecordType<ClockRecord> {
-        return ClockRecord;
+    getRecordType(): symbol {
+        return RECORD_TYPES.ClockRecord;
     }
 
 }
@@ -48,8 +50,8 @@ export class ClocksQuery extends RecordQueryBase<ClockRecord> {
         return [new PartitionKey('ClockRecord')];
     }
 
-    getRecordType(): RecordType<ClockRecord> {
-        return ClockRecord;
+    getRecordType(): symbol {
+        return RECORD_TYPES.ClockRecord;
     }
 
 }

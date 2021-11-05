@@ -11,7 +11,7 @@ export interface RecordQuery {
 }
 
 export abstract class RecordQueryBase<TRecord extends Record> implements RecordQuery {
-    abstract getRecordType(): RecordType<TRecord>;
+    abstract getRecordType(): symbol;
     abstract getPrimaryKeys(): ReadonlyArray<RecordIdAttribute>;
 }
 
@@ -26,8 +26,6 @@ export abstract class RecordBase<TRecordId extends RecordQuery> implements Recor
 
     protected abstract doGetRecordId(): TRecordId;
 }
-
-export type RecordType<TRecord extends Record> = new (...args: any[]) => TRecord;
 
 export type QueryResult<TRecord extends Record> = {
     lastKey: RecordQueryBase<TRecord> | null;

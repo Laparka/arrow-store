@@ -1,15 +1,18 @@
 import {QueryResult, Record, RecordQueryBase} from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import PredicateExpressionParser from "../parser/predicateExpressionParser";
+import {SchemaMappingProvider} from "../records/schemaMappingProvider";
 
 export class DynamoQuery<TRecord extends Record> {
     private static readonly _Lexer = new LambdaPredicateLexer();
     private static readonly _Parser = new PredicateExpressionParser();
 
+    private readonly _schemaMappingProvider: SchemaMappingProvider;
     private readonly _recordQuery: RecordQueryBase<TRecord>;
     private readonly _wherePredicates: ((value: TRecord) => boolean)[];
 
-    constructor(recordQuery: RecordQueryBase<TRecord>) {
+    constructor(schemaMappingProvider: SchemaMappingProvider, recordQuery: RecordQueryBase<TRecord>) {
+        this._schemaMappingProvider = schemaMappingProvider;
         this._recordQuery = recordQuery;
         this._wherePredicates = [];
     }
@@ -22,6 +25,7 @@ export class DynamoQuery<TRecord extends Record> {
         const query = predicate.toString();
         const tokens = DynamoQuery._Lexer.tokenize(query);
         const expression = DynamoQuery._Parser.parse(query, tokens);
+        const mappingSchema = this._schemaMappingProvider.findMappingSchema(this._recordQuery.getRecordType());
         return this;
     }
 

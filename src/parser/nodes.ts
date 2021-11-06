@@ -1,9 +1,10 @@
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
 import {TokenType} from "../lexer/queryTokens";
 
-export type EXPRESSION_NODE_TYPE = "RootParameter" | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
-    |"ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments"
-    | "StringValue" | "NumberValue" | "BooleanValue" | "NullValue";
+export type BOOLEAN_OPERATOR = 'And' | 'Or';
+export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue"
+export type EXPRESSION_NODE_TYPE =  PROPERTY_TYPE | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
+    |"ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments";
 
 export abstract class ParserNode {
     abstract get nodeType(): EXPRESSION_NODE_TYPE;
@@ -41,8 +42,6 @@ export class FunctionNode extends ParserNode{
     }
 }
 
-export type BOOLEAN_OPERATOR = 'And' | 'Or';
-
 export class BooleanOperationNode extends ParserNode {
     private readonly _booleanOperator: BOOLEAN_OPERATOR;
     private readonly _leftOperand: ParserNode;
@@ -52,6 +51,10 @@ export class BooleanOperationNode extends ParserNode {
         this._booleanOperator = operator;
         this._leftOperand = left;
         this._rightOperand = right;
+    }
+
+    get operator(): BOOLEAN_OPERATOR {
+        return this._booleanOperator;
     }
 
     get left(): ParserNode {
@@ -155,6 +158,10 @@ export class StringValueNode extends ParserNode {
         this._isFormatString = isFormatString;
     }
 
+    get value(): string {
+        return this._value;
+    }
+
     get nodeType(): EXPRESSION_NODE_TYPE {
         return "StringValue";
     }
@@ -167,8 +174,34 @@ export class NumberValueNode extends ParserNode {
         this._value = value;
     }
 
+    get value(): number {
+        return this._value;
+    }
+
     get nodeType(): EXPRESSION_NODE_TYPE {
         return "NumberValue";
+    }
+}
+
+export class NullValueNode extends ParserNode {
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "NullValue";
+    }
+}
+
+export class BoolValueNode extends ParserNode {
+    private readonly _value: boolean;
+    constructor(value: boolean) {
+        super();
+        this._value = value;
+    }
+
+    get value(): boolean {
+        return this._value;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "BooleanValue";
     }
 }
 
@@ -208,6 +241,10 @@ export class GroupNode extends ParserNode {
     constructor(bodyNode: ParserNode) {
         super();
         this._bodyNode = bodyNode;
+    }
+
+    get body(): ParserNode {
+        return this._bodyNode;
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {

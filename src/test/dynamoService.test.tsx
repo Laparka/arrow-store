@@ -1,19 +1,14 @@
 import {DynamoService} from "../services/dynamoService";
-import { ClockRecord, ClocksQuery} from "./models";
-import {SchemaMappingProvider} from "../records/schemaMappingProvider";
+import { ClocksQuery} from "./models";
 
 test("Must Read Values From Parameters Map Context Object", async () => {
-    const mappingProvider: SchemaMappingProvider = {
-        findMappingSchema(typeId: symbol): any {
-        }
-    };
-    const dynamoService = new DynamoService(mappingProvider);
+    const dynamoService = new DynamoService();
     const request = {
         clockType: 'Analog'
     };
 
     const query = dynamoService
-        .query<ClockRecord>(new ClocksQuery())
+        .query(new ClocksQuery())
         .where((r, ctx) => r.clockType !== ctx.clockType, request);
     const clockRecords = await query.listAsync()
 });

@@ -1,18 +1,18 @@
-import {QueryResult, Record, RecordQueryBase} from "../records/record";
+import {DynamoDBQueryResult, DynamoDBRecord, DynamoDBQueryIndexBase} from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import PredicateExpressionParser from "../parser/predicateExpressionParser";
-import {SchemaMappingProvider} from "../records/schemaMappingProvider";
+import {DynamoDB} from "aws-sdk";
+import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
 
-export class DynamoQuery<TRecord extends Record> {
+export class DynamoQuery<TRecord extends DynamoDBRecord> {
     private static readonly _Lexer = new LambdaPredicateLexer();
     private static readonly _Parser = new PredicateExpressionParser();
+    private static readonly _Transformer = new DynamoDBExpressionTransformer();
 
-    private readonly _schemaMappingProvider: SchemaMappingProvider;
-    private readonly _recordQuery: RecordQueryBase<TRecord>;
+    private readonly _recordQuery: DynamoDBQueryIndexBase<TRecord>;
     private readonly _wherePredicates: ((value: TRecord) => boolean)[];
 
-    constructor(schemaMappingProvider: SchemaMappingProvider, recordQuery: RecordQueryBase<TRecord>) {
-        this._schemaMappingProvider = schemaMappingProvider;
+    constructor(recordQuery: DynamoDBQueryIndexBase<TRecord>) {
         this._recordQuery = recordQuery;
         this._wherePredicates = [];
     }
@@ -25,11 +25,11 @@ export class DynamoQuery<TRecord extends Record> {
         const query = predicate.toString();
         const tokens = DynamoQuery._Lexer.tokenize(query);
         const expression = DynamoQuery._Parser.parse(query, tokens);
-        const mappingSchema = this._schemaMappingProvider.findMappingSchema(this._recordQuery.getRecordType());
+        const filterExpression = DynamoQuery._Transformer.transform(expression, {}, parametersMap)
         return this;
     }
 
-    skipTo(recordId: RecordQueryBase<TRecord>) : DynamoQuery<TRecord> {
+    skipTo(recordId: DynamoDBQueryIndexBase<TRecord>) : DynamoQuery<TRecord> {
         return this;
     }
 
@@ -45,13 +45,19 @@ export class DynamoQuery<TRecord extends Record> {
         return this;
     }
 
-    listAsync(parametersMap?: any): Promise<QueryResult<TRecord>> {
-        const result: QueryResult<TRecord> = {
+    listAsync(): Promise<DynamoDBQueryResult<TRecord>> {
+        const result: DynamoDBQueryResult<TRecord> = {
             lastKey: null,
             records: [],
             total: 0
         };
 
+        const ddb = new DynamoDB();
+        ddb.query({
+            TableName: '',
+            KeyConditionExpression: ''
+        }, err => {});
+        ddb.makeRequest('QUERY')
         return Promise.resolve(result)
     }
 }

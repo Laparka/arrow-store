@@ -19,11 +19,34 @@ export class ObjectTokenVisitor implements TokenVisitor {
                 index++;
             }
 
-            tokens.push({
-                tokenType: "Object",
-                index: startIndex,
-                length: index - startIndex
-            });
+            const value = query.slice(startIndex, startIndex + index);
+            switch (value) {
+                case "null": {
+                    tokens.push({
+                        tokenType: "NullValue",
+                        index: startIndex,
+                        length: index - startIndex
+                    });
+                    break;
+                }
+
+                case "undefined": {
+                    tokens.push({
+                        tokenType: "Undefined",
+                        index: startIndex,
+                        length: index - startIndex
+                    });
+                    break;
+                }
+                default: {
+                    tokens.push({
+                        tokenType: "Object",
+                        index: startIndex,
+                        length: index - startIndex
+                    });
+                    break;
+                }
+            }
         }
 
         return index;

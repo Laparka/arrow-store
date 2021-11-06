@@ -1,62 +1,80 @@
 import {
-    COMPARE_OPERATOR_TYPE,
-    RecordBase,
-    RecordIdAttribute,
-    RecordQueryBase
+    COMPARE_OPERATOR_TYPE, Ctor,
+    DynamoDBRecordBase,
+    DynamoDBPrimaryKey,
+    DynamoDBQueryIndexBase
 } from "../records/record";
 
 export const RECORD_TYPES = {
     ClockRecord: Symbol.for("ClockRecord")
 };
-export class ClockRecordId extends RecordQueryBase<ClockRecord> {
+export class ClockRecordId extends DynamoDBQueryIndexBase<ClockRecord> {
     private readonly _clockId: string;
     constructor(clockId: string) {
         super();
         this._clockId = clockId;
     }
 
-    getPrimaryKeys(): ReadonlyArray<RecordIdAttribute> {
+    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKey> {
         return [new PartitionKey('ClockRecord'), new RangeKey(this._clockId)];
     }
 
-    getRecordType(): symbol {
+    getRecordTypeId(): symbol {
         return RECORD_TYPES.ClockRecord;
+    }
+
+    protected getRecordType(): Ctor<ClockRecord> {
+        return ClockRecord;
     }
 
 }
 
 export type CLOCK_TYPE = 'Unknown' |  'Digital' | 'Analog';
 
-export class ClockRecord extends RecordBase<ClockRecordId> {
+export type ClockDetails = {
+    madeIn: string;
+    serialNumber: string;
+};
+export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
     constructor() {
         super();
         this.clockModel = '';
         this.clockType = 'Unknown';
         this.totalSegments = 12;
         this.brand = 'NoName';
-    }
+        this.clockDetails = {
+            madeIn: "USA",
+            serialNumber: "AA-BBC123"
+        }
+    };
+
 
     clockType: CLOCK_TYPE;
     totalSegments: number;
     brand: string;
     clockModel: string;
+    clockDetails: ClockDetails;
     protected doGetRecordId(): ClockRecordId {
         return new ClockRecordId(this.clockModel);
     }
 }
 
-export class ClocksQuery extends RecordQueryBase<ClockRecord> {
-    getPrimaryKeys(): ReadonlyArray<RecordIdAttribute> {
+export class ClocksQuery extends DynamoDBQueryIndexBase<ClockRecord> {
+    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKey> {
         return [new PartitionKey('ClockRecord')];
     }
 
-    getRecordType(): symbol {
+    getRecordTypeId(): symbol {
         return RECORD_TYPES.ClockRecord;
+    }
+
+    protected getRecordType(): Ctor<ClockRecord> {
+        return ClockRecord;
     }
 
 }
 
-export class PartitionKey implements RecordIdAttribute {
+export class PartitionKey implements DynamoDBPrimaryKey {
     constructor(partitionValue: string) {
         this.attributeName = 'Namespace';
         this.attributeValue = partitionValue;
@@ -70,7 +88,7 @@ export class PartitionKey implements RecordIdAttribute {
     }
 }
 
-export class RangeKey implements RecordIdAttribute {
+export class RangeKey implements DynamoDBPrimaryKey {
     private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE;
     constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE = 'Equals') {
         this.attributeName = 'RecordId';

@@ -117,7 +117,7 @@ export default class PredicateExpressionParser {
             const nextArg = this._comma(iterator);
             const args = [left];
             if (nextArg.nodeType === 'Arguments') {
-                args.push(...(<ArgumentsNode>nextArg).arguments);
+                args.push(...(<ArgumentsNode>nextArg).args);
             }
             else{
                 args.push(nextArg);

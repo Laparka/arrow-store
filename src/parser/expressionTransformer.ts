@@ -234,7 +234,7 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _visitArgs(node: ArgumentsNode, context: TraversalContext) {
-        node.arguments.forEach(arg => this._visit(arg, context));
+        node.args.forEach(arg => this._visit(arg, context));
     }
 
     private _getContextValue(context: TraversalContext, accessorProperties: string[]): string {

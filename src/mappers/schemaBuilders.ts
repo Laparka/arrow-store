@@ -1,4 +1,5 @@
 import {DynamoDB} from "aws-sdk";
+import {DynamoDBRecord} from "../records/record";
 
 export interface DynamoDBRecordMapper {
     writeAs(record: any, attributeValue: DynamoDB.MapAttributeValue): void;
@@ -14,7 +15,7 @@ export abstract class DynamoDBRecordMapperBase<TRecord> implements DynamoDBRecor
         this.doWriteAs(<TRecord>record, attributeValue);
     }
 
-    protected asString(attributeValue: DynamoDB.AttributeValue, required: boolean): string | null {
+    protected fromStringAttr(attributeValue: DynamoDB.AttributeValue, required: boolean): string | null {
         if (required && !attributeValue) {
             throw Error(`The required attribute does not exist`);
         }
@@ -27,7 +28,7 @@ export abstract class DynamoDBRecordMapperBase<TRecord> implements DynamoDBRecor
         return value;
     }
 
-    protected numberAttr(num: number | null): DynamoDB.AttributeValue {
+    protected toNumberAttr(num: number | null): DynamoDB.AttributeValue {
         const attribute: DynamoDB.AttributeValue = {};
         if (num !== null) {
             attribute.N = `${num}`;
@@ -56,9 +57,9 @@ export interface DynamoDBMemberSchemaBuilder<TMember> {
 }
 
 export interface MappingBuilder {
-    use<TRecord>(typeId: symbol, mapper: DynamoDBRecordMapperBase<TRecord>): void;
-    readAs<TRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
-    writeAs<TRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
+    use<TRecord extends DynamoDBRecord>(typeId: symbol, mapper: DynamoDBRecordMapperBase<TRecord>): void;
+    createReaderFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
+    createWriterFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
 }
 
 export interface DynamoDBMappingProfile {

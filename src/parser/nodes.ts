@@ -206,14 +206,14 @@ export class BoolValueNode extends ParserNode {
 }
 
 export class ArgumentsNode extends ParserNode {
-    private readonly _arguments: ParserNode[];
+    private readonly _args: ParserNode[];
     constructor(args: ParserNode[]) {
         super();
-        this._arguments = args;
+        this._args = args;
     }
 
-    get arguments(): ParserNode[] {
-        return this._arguments;
+    get args(): ParserNode[] {
+        return this._args;
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {

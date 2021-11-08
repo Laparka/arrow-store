@@ -13,6 +13,5 @@ module.exports = {
     },
     transformIgnorePatterns: [
         '<rootDir>/node_modules/(?!(lodash-es)/)'
-    ],
-    setupFiles: ['<rootDir>/jestSetup.ts']
+    ]
 };

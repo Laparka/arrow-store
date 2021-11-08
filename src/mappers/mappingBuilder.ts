@@ -1,4 +1,5 @@
 import {
+    DynamoDBAttributeSchema, DynamoDBMappingProvider,
     DynamoDBRecordMapper,
     DynamoDBRecordMapperBase,
     DynamoDBRecordSchemaBuilder,
@@ -6,6 +7,14 @@ import {
 } from "./schemaBuilders";
 import {DynamoDBRecord} from "../records/record";
 import FromAttributeSchemaBuilder from "./fromAttributeSchemaBuilder";
+
+class DefaultMappingProvider implements DynamoDBMappingProvider {
+    private readonly _readingSchema: Map<symbol, Map<string, DynamoDBAttributeSchema>>;
+    constructor(readingSchema: Map<symbol, Map<string, DynamoDBAttributeSchema>>) {
+        this._readingSchema = readingSchema;
+    }
+
+}
 
 export default class DynamoDBMappingBuilder implements MappingBuilder {
     private readonly _fromAttributeReaders: Map<symbol, DynamoDBRecordSchemaBuilder<any>>;
@@ -33,5 +42,14 @@ export default class DynamoDBMappingBuilder implements MappingBuilder {
         }
 
         this._mappers.set(typeId, mapper);
+    }
+
+    buildMappingProvider(): DynamoDBMappingProvider {
+        const readingSchema = new Map<symbol, Map<string, DynamoDBAttributeSchema>>();
+        this._fromAttributeReaders.forEach((builder, typeId) => {
+            readingSchema.set(typeId, builder.getRecordSchema());
+        });
+
+        return new DefaultMappingProvider(readingSchema);
     }
 }

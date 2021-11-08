@@ -17,12 +17,13 @@ test('Must return empty tokens', () => {
     const lexer = new LambdaPredicateLexer();
     assert(lexer.tokenize("").length === 0);
     assert(lexer.tokenize("           ").length === 0);
+    assert(lexer.tokenize("   \r\n   \n     ").length === 0);
 });
 
 test('Must throw exception when not a lambda expression', () => {
     const lexer = new LambdaPredicateLexer();
-    throws(() => lexer.tokenize("() => {return true;}"));
-    throws(() => lexer.tokenize("function() {return true;}"));
+    throws(() => lexer.tokenize("() => {return true}"));
+    throws(() => lexer.tokenize("function() {return true}"));
 });
 
 test('Must tokenize the lambda expression', () => {

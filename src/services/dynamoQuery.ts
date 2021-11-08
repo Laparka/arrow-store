@@ -25,7 +25,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         const query = predicate.toString();
         const tokens = DynamoQuery._Lexer.tokenize(query);
         const expression = DynamoQuery._Parser.parse(query, tokens);
-        const filterExpression = DynamoQuery._Transformer.transform(expression, {}, parametersMap)
+        const filterExpression = DynamoQuery._Transformer.transform(expression, undefined, parametersMap)
         return this;
     }
 

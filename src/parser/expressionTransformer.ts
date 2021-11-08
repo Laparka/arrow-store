@@ -7,6 +7,7 @@ import {
     ObjectAccessorNode,
     ParserNode, StringValueNode
 } from "./nodes";
+import {DynamoDBAttributeSchema, DynamoDBReadingSchema} from "../mappers/schemaBuilders";
 
 export type FilterExpression = {
     expression: string;
@@ -15,7 +16,7 @@ export type FilterExpression = {
 
 type TraversalContext = {
     stack: string[],
-    recordSchema: any,
+    recordSchema?: DynamoDBReadingSchema,
     contextParameters: any | undefined,
     filterAttributes: Map<string, string>,
     rootParameterName?: string,
@@ -23,7 +24,7 @@ type TraversalContext = {
 };
 
 export class DynamoDBExpressionTransformer {
-    transform(expression: ParserNode, recordSchema: any, parametersMap: any | undefined): FilterExpression {
+    transform(expression: ParserNode, recordSchema?: DynamoDBReadingSchema, parametersMap?: any): FilterExpression {
         const stack: string[] = [];
         const ctx = {stack: stack, contextParameters: parametersMap, filterAttributes: new Map<string, string>(), recordSchema: recordSchema};
         this._visit(expression, ctx);
@@ -242,6 +243,15 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _getRecordParameterSchema(context: TraversalContext, accessorProperties: string[]): string {
-        return "";
+        const memberSchema = context.recordSchema!.findByPath(accessorProperties);
+        if (!memberSchema) {
+            throw Error(`No DynamoDB Attribute mapping is defined for the ${accessorProperties.join('.')} member`);
+        }
+
+        return this._getMemberSchemaAttributeFullPath(memberSchema);
+    }
+
+    private _getMemberSchemaAttributeFullPath(memberSchema: DynamoDBAttributeSchema): string {
+        throw Error(`Not implemented`)
     }
 }

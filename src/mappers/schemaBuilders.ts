@@ -2,16 +2,16 @@ import {DynamoDB} from "aws-sdk";
 import {DynamoDBRecord} from "../records/record";
 
 export interface DynamoDBRecordMapper {
-    writeAs(record: any, attributeValue: DynamoDB.MapAttributeValue): void;
-    readAs(attributeValue: DynamoDB.MapAttributeValue): any;
+    writeAttribute(record: any, attributeValue: DynamoDB.MapAttributeValue): void;
+    readFromAttribute(attributeValue: DynamoDB.MapAttributeValue): any;
 }
 
 export abstract class DynamoDBRecordMapperBase<TRecord> implements DynamoDBRecordMapper {
-    readAs(attributeValue: DynamoDB.MapAttributeValue): any {
+    readFromAttribute(attributeValue: DynamoDB.MapAttributeValue): any {
         return this.doReadAs(attributeValue);
     }
 
-    writeAs(record: any, attributeValue: DynamoDB.MapAttributeValue): void {
+    writeAttribute(record: any, attributeValue: DynamoDB.MapAttributeValue): void {
         this.doWriteAs(<TRecord>record, attributeValue);
     }
 
@@ -45,23 +45,40 @@ export abstract class DynamoDBRecordMapperBase<TRecord> implements DynamoDBRecor
 }
 
 export interface DynamoDBRecordSchemaBuilder<TRecord> {
-    forMember<TMember>(memberAccessor: (record: TRecord) => TMember, map: (attribute: DynamoDBMemberSchemaBuilder<TMember>) => DynamoDBMemberSchemaBuilder<TMember>): DynamoDBRecordSchemaBuilder<TRecord>;
+    forMember<TMember>(memberAccessor: (record: TRecord) => TMember, map: (attribute: DynamoDBMemberSchemaBuilder<TMember>) => void): DynamoDBRecordSchemaBuilder<TRecord>;
+    getRecordSchema(): Map<string, DynamoDBAttributeSchema>;
 }
 
 export interface DynamoDBMemberSchemaBuilder<TMember> {
-    nestedIn(nestedAttributeName: string): DynamoDBMemberSchemaBuilder<TMember>;
-    asObject(nestedAttributeName: string, map: (attribute:DynamoDBRecordSchemaBuilder<TMember>) => DynamoDBRecordSchemaBuilder<TMember>): DynamoDBMemberSchemaBuilder<TMember>;
-    asNumber(attributeName: string): DynamoDBMemberSchemaBuilder<TMember>;
-    asString(attributeName: string): DynamoDBMemberSchemaBuilder<TMember>;
-    asBool(attributeName: string): DynamoDBMemberSchemaBuilder<TMember>;
+    asObject(attributeName: string, map: (attribute:DynamoDBRecordSchemaBuilder<TMember>) => DynamoDBRecordSchemaBuilder<TMember>): void;
+    asNumber(attributeName: string): void;
+    asString(attributeName: string): void;
+    asBool(attributeName: string): void;
+    getSchema(): Map<string, DynamoDBAttributeSchema>;
+}
+
+export interface DynamoDBMappingProvider {
 }
 
 export interface MappingBuilder {
     use<TRecord extends DynamoDBRecord>(typeId: symbol, mapper: DynamoDBRecordMapperBase<TRecord>): void;
     createReaderFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
     createWriterFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
+    buildMappingProvider(): DynamoDBMappingProvider;
 }
 
 export interface DynamoDBMappingProfile {
     register(builder: MappingBuilder): void;
+}
+
+export type DYNAMODB_ATTRIBUTE_TYPE = "S" |  "N" |  "B" |  "SS" |  "NS" |  "BS" |  "M" |  "L" |  "NULL" |  "BOOL";
+
+export type DynamoDBAttributeSchema = {
+    attributeName: string,
+    attributeType: DYNAMODB_ATTRIBUTE_TYPE,
+    nested?: DynamoDBAttributeSchema
+};
+
+export interface DynamoDBReadingSchema {
+    findByPath(memberAccessor: string[]): DynamoDBAttributeSchema;
 }

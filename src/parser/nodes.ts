@@ -2,7 +2,7 @@ import {COMPARE_OPERATOR_TYPE} from "../records/record";
 import {TokenType} from "../lexer/queryTokens";
 
 export type BOOLEAN_OPERATOR = 'And' | 'Or';
-export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue"
+export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue" | "UndefinedValue"
 export type EXPRESSION_NODE_TYPE =  PROPERTY_TYPE | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
     |"ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments";
 
@@ -35,6 +35,22 @@ export class FunctionNode extends ParserNode{
         this._functionName = functionName;
         this._instance = instance;
         this._argument = arg;
+    }
+
+    get functionName(): string {
+        return this._functionName;
+    }
+
+    get instance(): ObjectAccessorNode {
+        return this._instance;
+    }
+
+    get arguments(): ParserNode[] {
+        if (this._argument) {
+            return [this._argument];
+        }
+
+        return [];
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {
@@ -189,6 +205,12 @@ export class NullValueNode extends ParserNode {
     }
 }
 
+export class UndefinedValueNode extends ParserNode {
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "UndefinedValue";
+    }
+}
+
 export class BoolValueNode extends ParserNode {
     private readonly _value: boolean;
     constructor(value: boolean) {
@@ -222,15 +244,12 @@ export class ArgumentsNode extends ParserNode {
 }
 
 export class InverseNode extends ParserNode {
-    private readonly _body: ParserNode;
     constructor(body: ParserNode) {
         super();
-        this._body = body;
+        this.body = body;
     }
 
-    get body(): ParserNode {
-        return this._body;
-    }
+    body: ParserNode;
 
     get nodeType(): EXPRESSION_NODE_TYPE {
         return "Inverse";

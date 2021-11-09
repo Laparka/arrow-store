@@ -23,14 +23,14 @@ export default class FromAttributeSchemaBuilder<TRecord extends {}> implements D
     forMember<TMember>(memberAccessor: (record: TRecord) => TMember, map: (attribute: DynamoDBMemberSchemaBuilder<TMember>) => void): DynamoDBRecordSchemaBuilder<TRecord> {
         const memberBuilder = new DynamoDBMemberBuilder<TMember>(`${memberAccessor(this._proxyRecord)}`);
         map(memberBuilder);
-        memberBuilder.getSchema().forEach((schema, name) => {
+        memberBuilder.getMemberSchema().forEach((schema, name) => {
             this._membersSchema.set(name, schema);
         });
 
         return this;
     }
 
-    getRecordSchema(): Map<string, DynamoDBAttributeSchema> {
+    getRecordSchema(): ReadonlyMap<string, DynamoDBAttributeSchema> {
         return this._membersSchema;
     }
 }

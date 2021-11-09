@@ -7,36 +7,50 @@ import {
     ObjectAccessorNode,
     ParserNode, StringValueNode
 } from "./nodes";
-import {DynamoDBAttributeSchema, DynamoDBReadingSchema} from "../mappers/schemaBuilders";
+import {
+    DYNAMODB_ATTRIBUTE_TYPE,
+    DynamoDBAttributeSchema
+} from "../mappers/schemaBuilders";
+import {AttributeValue, ExpressionAttributeValueMap} from "aws-sdk/clients/dynamodb";
+import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
-export type FilterExpression = {
-    expression: string;
-    values: Map<string, string>;
-};
+const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
+    ["Equals", "="],
+    ["NotEquals", "!="],
+    ["LessThan", "<"],
+    ["LessThanOrEquals", "<="],
+    ["GreaterThan", ">"],
+    ["GreaterThanOrEquals", ">="]
+]);
 
 type TraversalContext = {
     stack: string[],
-    recordSchema?: DynamoDBReadingSchema,
     contextParameters: any | undefined,
-    filterAttributes: Map<string, string>,
     rootParameterName?: string,
     contextParameterName?: string
 };
 
 export class DynamoDBExpressionTransformer {
-    transform(expression: ParserNode, recordSchema?: DynamoDBReadingSchema, parametersMap?: any): FilterExpression {
-        const stack: string[] = [];
-        const ctx = {stack: stack, contextParameters: parametersMap, filterAttributes: new Map<string, string>(), recordSchema: recordSchema};
+    private readonly _recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>;
+    private readonly _expressionAttributeValues: ExpressionAttributeValueMap;
+    constructor(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>) {
+        this._recordSchema = recordSchema;
+        this._expressionAttributeValues = {};
+    }
+
+    get expressionAttributeValues(): ExpressionAttributeValueMap {
+        return this._expressionAttributeValues;
+    }
+
+    transform(expression: ParserNode, parametersMap?: any): string {
+        const ctx = {stack: [], contextParameters: parametersMap};
         this._visit(expression, ctx);
 
-        if (stack.length !== 1) {
-            throw Error(`Expression parsing failed. Only 1 element must be in the stack: ${stack.join(', ')}`);
+        if (ctx.stack.length !== 1) {
+            throw Error(`Expression parsing failed. Only 1 element must be in the stack: ${ctx.stack.join(', ')}`);
         }
 
-        return {
-            expression: stack.pop()!,
-            values: ctx.filterAttributes
-        }
+        return ctx.stack.pop()!;
     }
 
     private _visit(expression: ParserNode, context: TraversalContext): void {
@@ -101,8 +115,11 @@ export class DynamoDBExpressionTransformer {
             throw Error(`The lambda expression's root parameters are invalid`)
         }
 
-        context.rootParameterName = context.stack.pop();
+        context.rootParameterName = context.stack.pop()!;
         this._visit(node.body, context);
+        if (node.body.nodeType === 'ObjectAccessor'){
+            context.stack.push(this._tryAsBool(node.body, context.stack.pop()! , context));
+        }
     }
 
     private _visitGroup(node: GroupNode, context: TraversalContext) {
@@ -111,44 +128,122 @@ export class DynamoDBExpressionTransformer {
             return;
         }
 
-        if (context.stack.length === 1) {
-            context.stack.push(`(${context.stack.pop()})`);
+        if (node.body.nodeType === 'ObjectAccessor'){
+            context.stack.push(this._tryAsBool(node.body, context.stack.pop()! , context));
         }
+
+        context.stack.push(`(${context.stack.pop()})`)
     }
 
     private _visitFunction(node: FunctionNode, context: TraversalContext) {
+        this._visit(node.instance, context);
+        if (context.stack.length === 0) {
+            throw Error(`The function callee is not defined`);
+        }
 
+        const instance = context.stack.pop()!;
+        let functionName: string;
+        switch (node.functionName) {
+            case Object.prototype.hasOwnProperty.name: {
+                if (instance === Object.name) {
+                    functionName = "attribute_exists";
+                }
+                else {
+                    throw Error(`hasOwnProperty must be called on Object type only`);
+                }
+
+                break;
+            }
+
+            case String.prototype.includes.name: {
+                functionName = "contains";
+                break;
+            }
+
+            case String.prototype.startsWith.name: {
+                functionName = "begins_with";
+                break;
+            }
+
+            default: {
+                throw Error(`Not supported DynamoDB comparison function ${node.functionName}`);
+            }
+        }
+
+        const args: string[] = [];
+        if (functionName !== "attribute_exists") {
+            args.push(instance);
+        }
+
+        node.arguments.forEach(arg => {
+            this._visit(arg, context);
+            if (context.stack.length === 0) {
+                throw Error(`The function argument was not evaluated`);
+            }
+
+            args.push(context.stack.pop()!);
+        });
+
+        context.stack.push(`${functionName}(${args.join(',')})`);
     }
 
     private _visitInverse(node: InverseNode, context: TraversalContext) {
+        let inverseTimes = 0;
+        let childNode: ParserNode = node;
+        while(childNode.nodeType === 'Inverse') {
+            childNode = (<InverseNode>childNode).body;
+            inverseTimes++;
+        }
 
+        switch (childNode.nodeType){
+            case 'ObjectAccessor': {
+                const objectAccessor = <ObjectAccessorNode>childNode;
+                let schema = this._tryFindSchemaByPath(objectAccessor.accessor, context.rootParameterName);
+                if (!schema) {
+                    throw Error(`The member schema was not found. Failed to inverse ${objectAccessor.accessor}`);
+                }
+
+                if (inverseTimes > 1 || schema.lastChildAttributeType !== "BOOL") {
+                    const attributeExists = inverseTimes % 2 === 0 ? "attribute_exists" : "attribute_not_exists";
+                    context.stack.push(`${attributeExists}(${DynamoDBExpressionTransformer._joinAttributesPath(schema)})`);
+                }
+                else {
+                    const parameter = this._setFilterAttributeValue(inverseTimes % 2 === 0, "BOOL");
+                    context.stack.push(`${DynamoDBExpressionTransformer._joinAttributesPath(schema)} == ${parameter}`);
+                }
+
+                return;
+            }
+        }
+
+        this._visit(childNode, context);
+        const toInverse = context.stack.pop();
+        if (!toInverse) {
+            throw Error(`The inverse body was not found in the stack`);
+        }
+
+        context.stack.push(`not ${toInverse}`);
     }
 
     private _visitObject(node: ObjectAccessorNode, context: TraversalContext) {
-        const accessor = node.accessor;
-        const tokens = accessor.split('.');
-        let value: string | undefined;
-        if (tokens.length > 1) {
-            if (tokens[0] === context.contextParameterName) {
-                value = this._getContextValue(context, tokens.slice(1, tokens.length));
-            } else if (tokens[0] === context.rootParameterName) {
-                value = this._getRecordParameterSchema(context, tokens.slice(1, tokens.length));
-            }
-            else {
-                throw Error(`Unknown object accessor. Only the DynamoDB record or context object accessor is allowed`);
-            }
-        }
-
-        if (!value) {
-            value = node.accessor;
-        }
-
-        context.stack.push(value);
+        const objectValue = this._evalObjectAccessorValue(node.accessor, context)
+        context.stack.push(objectValue);
     }
 
     private _visitBooleanOperation(node: BooleanOperationNode, context: TraversalContext) {
         this._visit(node.left, context);
+        if (context.stack.length !== 1) {
+            throw Error(`The left boolean operand is required: ${context.stack.join(', ')}`);
+        }
+
+        const left = context.stack.pop()!;
+
         this._visit(node.right, context);
+        if (context.stack.length !== 1) {
+            throw Error(`The right boolean operand is required: ${context.stack.join(', ')}`);
+        }
+        const right = context.stack.pop()!;
+
         let operator: string;
         switch (node.operator) {
             case "And": {
@@ -166,92 +261,218 @@ export class DynamoDBExpressionTransformer {
             }
         }
 
-        if (context.stack.length !== 2) {
-            throw Error(`The left and right parts are required in the boolean operation: ${context.stack.join(', ')}`);
-        }
-
-        const right = context.stack.pop();
-        const left = context.stack.pop();
-        return `${left} ${operator} ${right}`;
+        context.stack.push(`${this._tryAsBool(node.left, left, context)} ${operator} ${this._tryAsBool(node.right, right, context)}`);
     }
 
     private _visitStringValue(node: StringValueNode, context: TraversalContext) {
-        context.stack.push(node.value);
+        context.stack.push(this._setFilterAttributeValue(node.value.slice(1, node.value.length - 1), "S"));
     }
 
     private _visitNumberValue(node: NumberValueNode, context: TraversalContext) {
-        context.stack.push(`${node.value}`);
+        context.stack.push(this._setFilterAttributeValue(`${node.value}`, "N"));
     }
 
     private _visitBoolValue(node: BoolValueNode, context: TraversalContext) {
-        context.stack.push(`${node.value}`);
+        context.stack.push(this._setFilterAttributeValue(node.value, "BOOL"));
     }
 
     private _visitNullValue(node: NullValueNode, context: TraversalContext) {
-        throw Error(`Not implemented`);
+        context.stack.push(this._setFilterAttributeValue(true, "NULL"));
     }
 
     private _visitCompare(node: CompareOperationNode, context: TraversalContext) {
         this._visit(node.left, context);
+        if (context.stack.length !== 1) {
+            throw Error(`The left compare operand is required: ${context.stack.join(', ')}`);
+        }
+
+        const left = context.stack.pop()!;
         this._visit(node.right, context);
-        if (context.stack.length !== 2) {
-            throw Error(`The stack must contain left and right compare operands`)
+        if (context.stack.length !== 1) {
+            throw Error(`The right compare operand is required: ${context.stack.join(', ')}`);
         }
 
-        const right = context.stack.pop();
-        const left = context.stack.pop();
-        let operator: string;
-        switch (node.operator) {
-            case "Equals": {
-                operator = "==";
-                break;
-            }
-            case "NotEquals": {
-                operator = "!=";
-                break;
-            }
-            case "GreaterThan": {
-                operator = ">";
-                break;
-            }
-            case "GreaterThanOrEquals": {
-                operator = ">=";
-                break;
-            }
-            case "LessThan": {
-                operator = "<";
-                break;
-            }
-            case "LessThanOrEquals": {
-                operator = "<=";
-                break;
-            }
-            default: {
-                throw Error(`Unknown comparison operator: ${node.operator}`);
-            }
-        }
-
-        context.stack.push(`${left} ${operator} ${right}`);
+        const right = context.stack.pop()!;
+        const operator: string = compareOperatorMap.get(node.operator)!;
+        context.stack.push(`${this._tryGetAsFilterAttribute(node.right, left, context)} ${operator} ${this._tryGetAsFilterAttribute(node.left, right, context)}`);
     }
 
     private _visitArgs(node: ArgumentsNode, context: TraversalContext) {
         node.args.forEach(arg => this._visit(arg, context));
     }
 
-    private _getContextValue(context: TraversalContext, accessorProperties: string[]): string {
-        return "";
-    }
-
-    private _getRecordParameterSchema(context: TraversalContext, accessorProperties: string[]): string {
-        const memberSchema = context.recordSchema!.findByPath(accessorProperties);
-        if (!memberSchema) {
-            throw Error(`No DynamoDB Attribute mapping is defined for the ${accessorProperties.join('.')} member`);
+    private _tryAsBool(node: ParserNode, value: string, context: TraversalContext): string {
+        if (node.nodeType !== 'ObjectAccessor' || this._expressionAttributeValues.hasOwnProperty(value)) {
+            return value;
         }
 
-        return this._getMemberSchemaAttributeFullPath(memberSchema);
+        const memberAccessor = (<ObjectAccessorNode>node).accessor;
+        const schema = this._tryFindSchemaByPath(memberAccessor, context.rootParameterName);
+        if (schema) {
+            if (schema.lastChildAttributeType === "BOOL") {
+                return `${value} = ${this._setFilterAttributeValue(true, "BOOL")}`;
+            }
+
+            return `attribute_exists(${value})`;
+        }
+
+        throw Error(`Invalid operation with the member ${memberAccessor}`);
     }
 
-    private _getMemberSchemaAttributeFullPath(memberSchema: DynamoDBAttributeSchema): string {
-        throw Error(`Not implemented`)
+    private _tryGetAsFilterAttribute(objectSchemaNode: ParserNode, value: string, context: TraversalContext): string {
+        if (this._expressionAttributeValues.hasOwnProperty(value) || objectSchemaNode.nodeType !== 'ObjectAccessor') {
+            return value;
+        }
+
+        if (value === "null") {
+            return this._setFilterAttributeValue(true, "NULL");
+        }
+
+        const memberAccessor = (<ObjectAccessorNode>objectSchemaNode).accessor;
+        let schema = this._tryFindSchemaByPath(memberAccessor, context.rootParameterName);
+        if (schema) {
+            return this._setFilterAttributeValue(value, schema.attributeType);
+        }
+
+        schema = this._tryFindSchemaByPath((<ObjectAccessorNode>objectSchemaNode).accessor, context.rootParameterName, "length");
+        if (schema) {
+            return this._setFilterAttributeValue(value, "N");
+        }
+
+        return value;
+    }
+
+    private _tryGetContextValue(memberAccessPath: string, context: TraversalContext): string | null {
+        let ctxObject = context.contextParameters;
+        const segments = this._cleanup(memberAccessPath);
+        for(let i = 0; i < segments.length; i++) {
+            const propertyName = segments[i];
+            if (i === 0) {
+                if (propertyName === context.contextParameterName) {
+                    continue;
+                }
+
+                return null;
+            }
+
+            ctxObject = ctxObject[propertyName];
+            if (!ctxObject){
+                if (segments.length - 1 === i) {
+                    if (ctxObject === null) {
+                        return "null";
+                    }
+                }
+
+                throw Error(`No value is available within the parameters object path ${segments.join('.')}`);
+            }
+        }
+
+        return ctxObject;
+    }
+    private _tryFindSchemaByPath(memberAccessPath: string, rootParameterName: string | undefined, byFunctionType?: string): DynamoDBAttributeSchema | null {
+        if (!rootParameterName) {
+            return null;
+        }
+
+        let pathSegments = this._cleanup(memberAccessPath);
+        if (pathSegments.length <= 1  || pathSegments[0] !== rootParameterName) {
+            return null;
+        }
+
+        pathSegments = pathSegments.slice(1, pathSegments.length);
+        let accessorPath;
+        let attributeSchema: DynamoDBAttributeSchema | undefined;
+        let isSizeFunction = false;
+        let len = pathSegments.length;
+        for(; len > 0; len--) {
+            accessorPath = pathSegments.slice(0, len).join('.');
+            attributeSchema = this._recordSchema.get(accessorPath);
+            if (attributeSchema) {
+                break;
+            }
+            else if (byFunctionType && len === pathSegments.length && pathSegments[pathSegments.length - 1] === byFunctionType) {
+                isSizeFunction = true;
+            }
+            else {
+                return null;
+            }
+        }
+
+        if (!attributeSchema) {
+            return null;
+        }
+
+        return attributeSchema;
+    }
+
+    private _setFilterAttributeValue(attributeValue: any, attributeType: DYNAMODB_ATTRIBUTE_TYPE): string {
+        const keys = Object.getOwnPropertyNames(this._expressionAttributeValues);
+        let matchingAttribute: AttributeValue | undefined;
+        let index = 0;
+        for(; index < keys.length; index++) {
+            const value = this._expressionAttributeValues[keys[index]];
+            if (value[attributeType] === attributeValue) {
+                matchingAttribute = value;
+                break;
+            }
+        }
+
+        if (matchingAttribute) {
+            return keys[index];
+        }
+
+        const newAttribute = {};
+        newAttribute[attributeType] = attributeValue;
+        const newKey = `__p_${keys.length}`;
+        this._expressionAttributeValues[newKey] = newAttribute;
+        return newKey;
+    }
+
+    private _evalObjectAccessorValue(accessor: string, context: TraversalContext): string {
+        const contextValue = this._tryGetContextValue(accessor, context);
+        if (contextValue) {
+            return contextValue;
+        }
+
+        let schema = this._tryFindSchemaByPath(accessor, context.rootParameterName);
+        if (schema) {
+            return DynamoDBExpressionTransformer._joinAttributesPath(schema);
+        }
+
+        schema = this._tryFindSchemaByPath(accessor, context.rootParameterName, "length");
+        if (schema) {
+            return `size(${DynamoDBExpressionTransformer._joinAttributesPath(schema)})`;
+        }
+
+        return accessor;
+    }
+
+    private static _joinAttributesPath(attributeSchema: DynamoDBAttributeSchema | undefined) {
+        if (!attributeSchema) {
+            throw Error(`The attributeSchema argument is required`);
+        }
+
+        const attributePathSegments: string[] = [];
+        do {
+            attributePathSegments.push(attributeSchema.attributeName);
+            attributeSchema = attributeSchema.nested;
+        }while(!!attributeSchema);
+
+        return attributePathSegments.join('.');
+    }
+
+    private _cleanup(memberAccessPath: string): string[] {
+        const segments: string[] = [];
+        if (memberAccessPath) {
+            memberAccessPath.split('.').forEach(value => {
+                if (value[value.length - 1] === '?' || value[value.length - 1] === '!') {
+                    value = value.slice(0, value.length - 1);
+                }
+
+                segments.push(value);
+            });
+        }
+
+        return segments;
     }
 }

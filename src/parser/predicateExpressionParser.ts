@@ -9,7 +9,7 @@ import {
     LambdaExpressionNode,
     NumberValueNode,
     FunctionNode,
-    InverseNode, ArgumentsNode
+    InverseNode, ArgumentsNode, NullValueNode, UndefinedValueNode
 } from "./nodes";
 
 type NodeIterator = {
@@ -65,13 +65,27 @@ export default class PredicateExpressionParser {
     private _function(iterator: NodeIterator): ParserNode {
         const left = this._compare(iterator);
         const token = this._getCurrentToken(iterator);
-        if (token.tokenType === 'GroupStart' && left.nodeType === 'ObjectAccessor') {
-            iterator.index++;
-            const objectSegments = (<ObjectAccessorNode>left).accessor.split(/[.]/g);
-            const functionName = objectSegments[objectSegments.length - 1];
-            const instance = new ObjectAccessorNode(objectSegments.slice(0, objectSegments.length - 1).join('.'));
-            const argument = this._functionArgNode(iterator);
-            return new FunctionNode(functionName, instance, argument);
+        if (token.tokenType === 'GroupStart') {
+            let inverse = left;
+            let lastInverseNode: InverseNode | undefined;
+            while(inverse.nodeType === 'Inverse') {
+                lastInverseNode = <InverseNode>inverse;
+                inverse = lastInverseNode.body;
+            }
+
+            if (inverse.nodeType === 'ObjectAccessor') {
+                iterator.index++;
+                const objectSegments = (<ObjectAccessorNode>inverse).accessor.split(/[.]/g);
+                const functionName = objectSegments[objectSegments.length - 1];
+                const instance = new ObjectAccessorNode(objectSegments.slice(0, objectSegments.length - 1).join('.'));
+                const argument = this._functionArgNode(iterator);
+                const functionNode = new FunctionNode(functionName, instance, argument);
+                if (!lastInverseNode) {
+                    return functionNode;
+                }
+
+                lastInverseNode.body = functionNode;
+            }
         }
 
         return left;
@@ -88,7 +102,7 @@ export default class PredicateExpressionParser {
     }
 
     private _compare(iterator: NodeIterator): ParserNode {
-        const left = this._inverse(iterator);
+        const left = this._comma(iterator);
         const token = this._getCurrentToken(iterator);
         if (_comparisonTokens.findIndex(x => token.tokenType === x) >= 0) {
             iterator.index++;
@@ -99,18 +113,8 @@ export default class PredicateExpressionParser {
         return left;
     }
 
-    private _inverse(iterator: NodeIterator): ParserNode {
-        const token = this._getCurrentToken(iterator);
-        if (token.tokenType === 'Inverse') {
-            iterator.index++;
-            return new InverseNode(this._inverse(iterator));
-        }
-
-        return this._comma(iterator);
-    }
-
     private _comma(iterator: NodeIterator): ParserNode {
-        const left = this._operand(iterator);
+        const left = this._inverse(iterator);
         const token = this._getCurrentToken(iterator);
         if (token.tokenType === 'CommaSeparator') {
             iterator.index++;
@@ -129,6 +133,16 @@ export default class PredicateExpressionParser {
         return left;
     }
 
+    private _inverse(iterator: NodeIterator): ParserNode {
+        const token = this._getCurrentToken(iterator);
+        if (token.tokenType === 'Inverse') {
+            iterator.index++;
+            return new InverseNode(this._inverse(iterator));
+        }
+
+        return this._operand(iterator);
+    }
+
     private _operand(iterator: NodeIterator): ParserNode {
         const token = this._getCurrentToken(iterator);
         switch (token.tokenType) {
@@ -139,6 +153,14 @@ export default class PredicateExpressionParser {
                 return new StringValueNode(this._stringify(iterator.query, token), token.tokenType === 'FormatString');
             }
 
+            case 'NullValue': {
+                iterator.index++;
+                return new NullValueNode();
+            }
+            case 'Undefined': {
+                iterator.index++;
+                return new UndefinedValueNode();
+            }
             case 'Number':{
                 iterator.index++;
                 return new NumberValueNode(parseFloat(this._stringify(iterator.query, token)));

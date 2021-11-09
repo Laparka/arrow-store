@@ -17,49 +17,38 @@ export default class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSch
     }
 
     asBool(attributeName: string): void {
-        this._attributeSchema.set(this._memberName, this._as("BOOL", attributeName));
+        this._attributeSchema.set(this._memberName, this._asTopLevel("BOOL", attributeName));
     }
 
     asNumber(attributeName: string): void {
-        this._attributeSchema.set(this._memberName, this._as("N", attributeName));
+        this._attributeSchema.set(this._memberName, this._asTopLevel("N", attributeName));
     }
 
     asObject(attributeName: string, map: (attribute: DynamoDBRecordSchemaBuilder<TMember>) => DynamoDBRecordSchemaBuilder<TMember>): void {
-        /*
-     clockDetails.madeIn: {
-         attributeName: "RECORD_DATA",
-         attributeType: "M",
-         nested: {
-             attributeName: "CLOCK_DETAILS",
-             attributeType: "M",
-             nested: {
-                attributeName: "MADE_IN",
-                attributeType: "S"
-             }
-         }
-     }
- * */
         const nestedBuilder = new FromAttributeSchemaBuilder<TMember>();
         map(nestedBuilder);
-        const attributeSchema = this._as("M", attributeName);
         nestedBuilder.getRecordSchema().forEach((memberSchema, memberName) => {
             const name = [this._memberName, memberName].join('.');
-            const parentSchema: DynamoDBAttributeSchema = JSON.parse(JSON.stringify(attributeSchema));
-            const lastNested = this._findLast(parentSchema, attributeName);
-            lastNested.nested = memberSchema;
-            this._attributeSchema.set(name, parentSchema);
+            const parentSchemas = this._asLastType("M", attributeName, memberSchema.lastChildAttributeType);
+            const lastChildSchema = parentSchemas[1];
+            lastChildSchema.nested = memberSchema;
+            this._attributeSchema.set(name, parentSchemas[0]);
         });
     }
 
     asString(attributeName: string): void {
-        this._attributeSchema.set(this._memberName, this._as("S", attributeName));
+        this._attributeSchema.set(this._memberName, this._asTopLevel("S", attributeName));
     }
 
-    getSchema(): Map<string, DynamoDBAttributeSchema> {
+    getMemberSchema(): ReadonlyMap<string, DynamoDBAttributeSchema> {
        return this._attributeSchema;
     }
 
-    private _as(attributeType: DYNAMODB_ATTRIBUTE_TYPE, attributeName: string): DynamoDBAttributeSchema {
+    private _asTopLevel(attributeType: DYNAMODB_ATTRIBUTE_TYPE, attributeName: string): DynamoDBAttributeSchema {
+        return this._asLastType(attributeType, attributeName, attributeType)[0];
+    }
+
+    private _asLastType(attributeType: DYNAMODB_ATTRIBUTE_TYPE, attributeName: string, lastChildType?: DYNAMODB_ATTRIBUTE_TYPE): DynamoDBAttributeSchema[] {
         if (!attributeName) {
             throw Error(`Attribute name is required`);
         }
@@ -69,30 +58,25 @@ export default class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSch
             throw Error(`The attributeName is missing`);
         }
 
-        let attributeSchema = {
+        let attributeSchema: DynamoDBAttributeSchema = {
             attributeType: attributeType,
-            attributeName: attributePath[attributePath.length - 1]
+            attributeName: attributePath[attributePath.length - 1],
+            lastChildAttributeType: lastChildType ?? attributeType
         };
 
+        const lastSchema = attributeSchema;
         for(let i = attributePath.length - 2; i >= 0; i--) {
             const nested: DynamoDBAttributeSchema = {
                 attributeType: "M",
-                attributeName: attributePath[i]
+                attributeName: attributePath[i],
+                lastChildAttributeType: lastChildType ?? attributeType
             };
 
             nested.nested = attributeSchema;
             attributeSchema = nested;
         }
 
-        return attributeSchema;
-    }
-
-    private _findLast(schema: DynamoDBAttributeSchema, lastAttributeName: string): DynamoDBAttributeSchema {
-        while(schema.nested) {
-            schema = schema.nested;
-        }
-
-        return schema;
+        return [attributeSchema, lastSchema];
     }
 }
 

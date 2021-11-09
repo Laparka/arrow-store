@@ -6,7 +6,7 @@ export interface TokenVisitor {
 
 export class ObjectTokenVisitor implements TokenVisitor {
     private static readonly _literalStartRegex = /[a-zA-Z_$]/;
-    private static readonly _literalRegex = /[a-zA-Z_$0-9.]/;
+    private static readonly _literalRegex = /[a-zA-Z_$0-9.?!]/;
 
     visit(query: string, index: number, tokens: QueryToken[]): number {
         if (query.charCodeAt(index) >= 0 && query.charCodeAt(index) <= 32) {
@@ -14,18 +14,18 @@ export class ObjectTokenVisitor implements TokenVisitor {
         }
 
         if (ObjectTokenVisitor._literalStartRegex.test(query[index])) {
-            let startIndex = index++;
-            while(index < query.length && ObjectTokenVisitor._literalRegex.test(query[index])) {
-                index++;
+            let endIndex = index + 1;
+            while(endIndex < query.length && ObjectTokenVisitor._literalRegex.test(query[endIndex])) {
+                endIndex++;
             }
 
-            const value = query.slice(startIndex, startIndex + index);
+            const value = query.slice(index, endIndex);
             switch (value) {
                 case "null": {
                     tokens.push({
                         tokenType: "NullValue",
-                        index: startIndex,
-                        length: index - startIndex
+                        index: index,
+                        length: endIndex - index
                     });
                     break;
                 }
@@ -33,20 +33,22 @@ export class ObjectTokenVisitor implements TokenVisitor {
                 case "undefined": {
                     tokens.push({
                         tokenType: "Undefined",
-                        index: startIndex,
-                        length: index - startIndex
+                        index: index,
+                        length: endIndex - index
                     });
                     break;
                 }
                 default: {
                     tokens.push({
                         tokenType: "Object",
-                        index: startIndex,
-                        length: index - startIndex
+                        index: index,
+                        length: endIndex - index
                     });
                     break;
                 }
             }
+
+            index = endIndex;
         }
 
         return index;
@@ -224,17 +226,16 @@ export class BooleanOperatorTokenVisitor implements TokenVisitor {
             }
 
             case '!': {
-                if (query[++endIndex] !== '=') {
-                    --endIndex;
-                }
-                else {
-                    tokenType = "NotEquals";
-                    if (query[++endIndex] === '=') {
+                if (query[++endIndex] === '=') {
+                    if (query[endIndex + 1] === '=') {
                         ++endIndex;
                     }
-                    else {
-                        --endIndex;
-                    }
+
+                    ++endIndex;
+                    tokenType = "NotEquals";
+                }
+                else {
+                    endIndex = index;
                 }
 
                 break;

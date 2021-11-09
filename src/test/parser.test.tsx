@@ -10,6 +10,13 @@ import {
     StringValueNode
 } from "../parser/nodes";
 
+test('Must understand inverse', () => {
+    const lexer = new LambdaPredicateLexer();
+    const parser = new PredicateExpressionParser();
+    const predicateString = "x => x.brand.startsWith(\"Fos\") || !Object.hasOwnProperty(x.brand)";
+    const tokens = lexer.tokenize(predicateString);
+    const expression = parser.parse(predicateString, tokens);
+})
 test('Must parse a non-lambda expression', () =>{
     const lexer = new LambdaPredicateLexer();
     const parser = new PredicateExpressionParser();
@@ -36,7 +43,7 @@ test('Must parse a non-lambda expression', () =>{
 test('Must build AST tree for grouped expression with a function', () =>{
     const lexer = new LambdaPredicateLexer();
     const parser = new PredicateExpressionParser();
-    const predicate: (value: ClockRecord) => boolean = x => (x.brand.startsWith("Fos") || x.brand.length === 1) || x.clockType === 'Analog' && !!x.brand;
+    const predicate: (value: ClockRecord) => boolean = x => (x.brand && x.brand.startsWith("Fos") || x.brand.length === 1) || x.clockType === 'Analog' && !!x.brand;
     const predicateString = predicate.toString();
     const tokens = lexer.tokenize(predicateString);
     const lambda = parser.parse(predicateString, tokens);

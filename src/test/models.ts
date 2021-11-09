@@ -38,23 +38,22 @@ export type ClockDetails = {
 export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
     constructor() {
         super();
-        this.clockModel = '';
-        this.clockType = 'Unknown';
-        this.totalSegments = 12;
-        this.brand = 'NoName';
-        this.clockDetails = {
-            madeIn: "USA",
-            serialNumber: "AA-BBC123"
-        }
+        this.isCertified = false;
+        this.totalSegments = null;
+        this.clockDetails = null;
     };
 
-
-    clockType: CLOCK_TYPE;
-    totalSegments: number;
-    brand: string;
-    clockModel: string;
-    clockDetails: ClockDetails;
+    isCertified: boolean;
+    clockType!: CLOCK_TYPE;
+    totalSegments: number | null;
+    brand!: string;
+    clockModel!: string;
+    clockDetails: ClockDetails | null;
     protected doGetRecordId(): ClockRecordId {
+        if (!this.clockModel) {
+            throw Error(`The clockModel value is missing`)
+        }
+
         return new ClockRecordId(this.clockModel);
     }
 }

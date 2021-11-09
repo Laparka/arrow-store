@@ -1,42 +1,107 @@
 import {ClockRecord, RECORD_TYPES} from "./models";
-import {DynamoDB} from "aws-sdk";
 import {
-    DynamoDBMappingProfile,
-    MappingBuilder,
-    DynamoDBRecordMapperBase
+    DynamoDBAttributeSchema,
+    DynamoDBMappingProfile, DynamoDBRecordSchemaSourceBase,
+    MappingBuilder
 } from "../mappers/schemaBuilders";
 
-class ClockRecordMapper extends DynamoDBRecordMapperBase<ClockRecord> {
-    protected doReadAs(attributeValue: DynamoDB.MapAttributeValue): ClockRecord {
-        const record = new ClockRecord();
-        const recordDataAtr = attributeValue["recordData"];
-        if (!recordDataAtr) {
-            throw Error(`The recordData attribute was not found`);
-        }
-
-        record.brand = this.fromStringAttr(recordDataAtr["brand"], false) ?? "";
-        return record;
-    }
-
-    protected doWriteAs(record: ClockRecord, attributeValue: DynamoDB.MapAttributeValue): void {
-        attributeValue["recordData"] = {
-            M: {
-                "totalSegments": this.toNumberAttr(record.totalSegments)
-            }
-        };
+export class ClockRecordSchemaSource extends DynamoDBRecordSchemaSourceBase<ClockRecord> {
+    getReadingSchema(): Map<string, DynamoDBAttributeSchema> {
+        return new Map<string, DynamoDBAttributeSchema>([
+            ["clockType", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "S",
+                nested: {
+                    attributeName: "CLOCK_TYPE",
+                    attributeType: "S",
+                    lastChildAttributeType: "S"
+                }
+            }],
+            ["totalSegments", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "N",
+                nested: {
+                    attributeName: "TOTAL_SEGMENTS",
+                    attributeType: "N",
+                    lastChildAttributeType: "N"
+                }
+            }],
+            ["brand", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "S",
+                nested: {
+                    attributeName: "BRAND",
+                    attributeType: "S",
+                    lastChildAttributeType: "S"
+                }
+            }],
+            ["isCertified", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "BOOL",
+                nested: {
+                    attributeName: "isCertified",
+                    attributeType: "BOOL",
+                    lastChildAttributeType: "BOOL"
+                }
+            }],
+            ["clockDetails", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "M",
+                nested: {
+                    attributeName: "CLOCK_DETAILS",
+                    attributeType: "M",
+                    lastChildAttributeType: "M"
+                }
+            }],
+            ["clockDetails.madeIn", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "S",
+                nested: {
+                    attributeName: "CLOCK_DETAILS",
+                    attributeType: "M",
+                    lastChildAttributeType: "S",
+                    nested: {
+                        attributeName: "MADE_IN",
+                        attributeType: "S",
+                        lastChildAttributeType: "S"
+                    }
+                }
+            }],
+            ["clockDetails.serialNumber", {
+                attributeName: "RECORD_DATA",
+                attributeType: "M",
+                lastChildAttributeType: "S",
+                nested: {
+                    attributeName: "CLOCK_DETAILS",
+                    attributeType: "M",
+                    lastChildAttributeType: "S",
+                    nested: {
+                        attributeName: "serialNumber",
+                        attributeType: "S",
+                        lastChildAttributeType: "S"
+                    }
+                }
+            }]
+        ]);
     }
 }
 
-export default class TestMappingProfile implements DynamoDBMappingProfile {
+export class TestMappingProfile implements DynamoDBMappingProfile {
     register(builder: MappingBuilder): void {
         builder
-            .use(RECORD_TYPES.ClockRecord, new ClockRecordMapper());
+            .use(RECORD_TYPES.ClockRecord, new ClockRecordSchemaSource());
         builder
             .createReaderFor<ClockRecord>(RECORD_TYPES.ClockRecord)
             .forMember(x => x.totalSegments, readAs => readAs.asNumber("RECORD_DATA.TOTAL_SEGMENTS"))
             .forMember(x => x.brand, readAs => readAs.asString("RECORD_DATA.BRAND"))
             .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
-                    nested.forMember(x => x.madeIn, from => from.asString("MADE_IN"))));
+                    nested.forMember(x => x!.madeIn, from => from.asString("MADE_IN"))));
         /*builder
             .createWriterFor<ClockRecord>(RECORD_TYPES.ClockRecord)
             .forMember(x => x.totalSegments, writeTo => writeTo.nestedIn('recordData').asNumber('totalSegments'))

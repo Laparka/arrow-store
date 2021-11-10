@@ -1,7 +1,6 @@
 import {DynamoService} from "../services/dynamoService";
 import { ClocksQuery} from "./models";
 import {DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
-import any = jasmine.any;
 import {ClockRecordSchemaSource} from "./testMappingProfile";
 
 test("Must Read Values From Parameters Map Context Object", async () => {
@@ -19,6 +18,6 @@ test("Must Read Values From Parameters Map Context Object", async () => {
 
     const query = dynamoService
         .query(new ClocksQuery())
-        .where((r, ctx) => !!r.clockDetails && r.clockDetails.serialNumber !== null, requestCtx);
+        .where((r, ctx) => !!r.clockDetails && (r.clockDetails.serialNumber !== null || !r.clockDetails.madeIn.includes("US")), requestCtx);
     const clockRecords = await query.listAsync()
 });

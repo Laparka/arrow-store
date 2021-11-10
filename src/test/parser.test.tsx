@@ -54,10 +54,14 @@ test('Must build AST tree for grouped expression with a function', () =>{
             new GroupNode(
                 new BooleanOperationNode(
                     'Or',
-                    new FunctionNode(
-                        'startsWith',
+                    new BooleanOperationNode(
+                        'And',
                         new ObjectAccessorNode('x.brand'),
-                        new StringValueNode(`"Fos"`, false)
+                        new FunctionNode(
+                            'startsWith',
+                            new ObjectAccessorNode('x.brand'),
+                            new StringValueNode(`"Fos"`, false)
+                        ),
                     ),
                     new CompareOperationNode(
                         'Equals',
@@ -210,4 +214,15 @@ test('Must build AST tree for multiple group expressions', () =>{
     const resultJson = JSON.stringify(lambda);
     const expectJson = JSON.stringify(expectedTree);
     assert(expectJson === resultJson);
+});
+
+test("Must parse simple inverse group node", () => {
+    const lexer = new LambdaPredicateLexer();
+    const parser = new PredicateExpressionParser();
+
+    const predicate: (value: ClockRecord) => boolean = x => !x.brand.startsWith(x.clockModel) || x.clockType === "Analog";
+    const predicateString = predicate.toString();
+    const tokens = lexer.tokenize(predicateString);
+    const lambda = parser.parse(predicateString, tokens);
+    const actualJson = JSON.stringify(lambda);
 });

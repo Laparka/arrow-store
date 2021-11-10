@@ -1,10 +1,10 @@
 import {DynamoDBQueryResult, DynamoDBRecord, DynamoDBQueryIndexBase} from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import PredicateExpressionParser from "../parser/predicateExpressionParser";
-import {DynamoDB} from "aws-sdk";
+import {DynamoDBClient, QueryCommand, QueryInput} from "@aws-sdk/client-dynamodb";
 import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
-import {DynamoDBAttributeSchema, DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
-import {QueryInput} from "aws-sdk/clients/dynamodb";
+import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
+
 
 export class DynamoQuery<TRecord extends DynamoDBRecord> {
     private static readonly _Lexer = new LambdaPredicateLexer();
@@ -13,17 +13,12 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
     private readonly _recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>;
     private readonly _expressionTransformer: DynamoDBExpressionTransformer;
     private readonly _filterExpressions: string[];
-    private readonly _dynamoDBQuery: QueryInput;
 
     constructor(recordQuery: DynamoDBQueryIndexBase<TRecord>, recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>) {
         this._recordQuery = recordQuery;
         this._filterExpressions = [];
         this._recordSchema = recordSchema;
         this._expressionTransformer = new DynamoDBExpressionTransformer(recordSchema)
-        this._dynamoDBQuery = {
-            TableName: "",
-            ExpressionAttributeValues: this._expressionTransformer.expressionAttributeValues
-        };
     }
 
     where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext) : DynamoQuery<TRecord> {
@@ -54,19 +49,14 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    listAsync(): Promise<DynamoDBQueryResult<TRecord>> {
+    async listAsync(): Promise<DynamoDBQueryResult<TRecord>> {
         const result: DynamoDBQueryResult<TRecord> = {
             lastKey: null,
             records: [],
             total: 0
         };
 
-        const ddb = new DynamoDB();
-        ddb.query({
-            TableName: '',
-            KeyConditionExpression: '',
-
-        }, err => {});
+        const ddb = new DynamoDBClient({});
         return Promise.resolve(result)
     }
 }

@@ -9,7 +9,7 @@ import {
     LambdaExpressionNode,
     NumberValueNode,
     FunctionNode,
-    InverseNode, ArgumentsNode, NullValueNode, UndefinedValueNode
+    InverseNode, ArgumentsNode, NullValueNode, UndefinedValueNode, BoolValueNode
 } from "./nodes";
 
 type NodeIterator = {
@@ -51,7 +51,7 @@ export default class PredicateExpressionParser {
     }
 
     private _and(iterator: NodeIterator): ParserNode {
-        const left = this._function(iterator);
+        const left = this._compare(iterator);
         const token = this._getCurrentToken(iterator);
         if (token.tokenType === 'And') {
             iterator.index++;
@@ -62,143 +62,120 @@ export default class PredicateExpressionParser {
         return left;
     }
 
-    private _function(iterator: NodeIterator): ParserNode {
-        const left = this._compare(iterator);
-        const token = this._getCurrentToken(iterator);
-        if (token.tokenType === 'GroupStart') {
-            let inverse = left;
-            let lastInverseNode: InverseNode | undefined;
-            while(inverse.nodeType === 'Inverse') {
-                lastInverseNode = <InverseNode>inverse;
-                inverse = lastInverseNode.body;
-            }
-
-            if (inverse.nodeType === 'ObjectAccessor') {
-                iterator.index++;
-                const objectSegments = (<ObjectAccessorNode>inverse).accessor.split(/[.]/g);
-                const functionName = objectSegments[objectSegments.length - 1];
-                const instance = new ObjectAccessorNode(objectSegments.slice(0, objectSegments.length - 1).join('.'));
-                const argument = this._functionArgNode(iterator);
-                const functionNode = new FunctionNode(functionName, instance, argument);
-                if (!lastInverseNode) {
-                    return functionNode;
-                }
-
-                lastInverseNode.body = functionNode;
-            }
-        }
-
-        return left;
-    }
-
-    private _functionArgNode(iterator: NodeIterator): ParserNode {
-        const left = this._operand(iterator);
-        const token = this._getCurrentToken(iterator);
-        if (token.tokenType === 'GroupEnd') {
-            iterator.index++;
-        }
-
-        return left;
-    }
-
     private _compare(iterator: NodeIterator): ParserNode {
-        const left = this._comma(iterator);
+        const left = this._argument(iterator);
         const token = this._getCurrentToken(iterator);
-        if (_comparisonTokens.findIndex(x => token.tokenType === x) >= 0) {
+        if (_comparisonTokens.findIndex(x => x === token.tokenType) >= 0) {
             iterator.index++;
-            const right = this._function(iterator);
+            const right = this._compare(iterator);
             return new CompareOperationNode(token.tokenType, left, right);
         }
 
         return left;
     }
 
-    private _comma(iterator: NodeIterator): ParserNode {
-        const left = this._inverse(iterator);
+    private _argument(iterator: NodeIterator): ParserNode {
+        const left = this._function(iterator);
         const token = this._getCurrentToken(iterator);
-        if (token.tokenType === 'CommaSeparator') {
+        if (token.tokenType === "CommaSeparator") {
             iterator.index++;
-            const nextArg = this._comma(iterator);
-            const args = [left];
-            if (nextArg.nodeType === 'Arguments') {
-                args.push(...(<ArgumentsNode>nextArg).args);
-            }
-            else{
-                args.push(nextArg);
+            const rightArgs = this._argument(iterator);
+            const leftArgs = left.nodeType === "Arguments" ? (<ArgumentsNode>left).args : [left];
+            return new ArgumentsNode([...leftArgs, rightArgs]);
+        }
+
+        return left;
+    }
+    private _function(iterator: NodeIterator): ParserNode {
+        const left = this._value(iterator);
+        const token = this._getCurrentToken(iterator);
+        if (token.tokenType === "GroupStart") {
+            iterator.index++;
+            const argumentsNode = this._argument(iterator);
+            const closingToken = this._getCurrentToken(iterator);
+            if (closingToken.tokenType !== "GroupEnd") {
+                throw Error(`A closing parenthesis token is expected in function's arguments node: ${this._stringify(iterator.query, closingToken)}`)
             }
 
-            return new ArgumentsNode(args);
+            iterator.index++;
+            const memberSegments = (<ObjectAccessorNode>left).value.split('.');
+            const functionName = memberSegments[memberSegments.length - 1];
+            const instanceAccessorNode = new ObjectAccessorNode(memberSegments.slice(0, memberSegments.length - 1).join('.'))
+            return new FunctionNode(functionName, instanceAccessorNode, argumentsNode)
         }
 
         return left;
     }
 
-    private _inverse(iterator: NodeIterator): ParserNode {
-        const token = this._getCurrentToken(iterator);
-        if (token.tokenType === 'Inverse') {
-            iterator.index++;
-            return new InverseNode(this._inverse(iterator));
+    private _value(iterator: NodeIterator): ParserNode {
+        const left = this._groupStart(iterator);
+        if (!!left){
+            return left;
         }
 
-        return this._operand(iterator);
-    }
-
-    private _operand(iterator: NodeIterator): ParserNode {
         const token = this._getCurrentToken(iterator);
-        switch (token.tokenType) {
-            case 'String':
-            case 'FormatString':
-            {
+        switch (token.tokenType){
+            case "Object": {
                 iterator.index++;
-                return new StringValueNode(this._stringify(iterator.query, token), token.tokenType === 'FormatString');
+                return new ObjectAccessorNode(this._stringify(iterator.query, token));
             }
 
-            case 'NullValue': {
+            case "NullValue": {
                 iterator.index++;
                 return new NullValueNode();
             }
-            case 'Undefined': {
+
+            case "Boolean": {
                 iterator.index++;
-                return new UndefinedValueNode();
+                return new BoolValueNode(this._stringify(iterator.query, token) === "true");
             }
-            case 'Number':{
+
+            case "FormatString":
+            case "String":{
+                iterator.index++;
+                return new StringValueNode(this._stringify(iterator.query, token), token.tokenType === "FormatString");
+            }
+
+            case "Number": {
                 iterator.index++;
                 return new NumberValueNode(parseFloat(this._stringify(iterator.query, token)));
             }
 
-            case 'Boolean': {
+            case "Undefined": {
                 iterator.index++;
-                throw Error(`Not implemented`);
-            }
-
-            case 'Object': {
-                return this._object(iterator);
-            }
-
-            case 'GroupStart': {
-                iterator.index++;
-                const group = this._lambda(iterator);
-                const endToken = this._getCurrentToken(iterator);
-                if (endToken.tokenType !== 'GroupEnd') {
-                    throw Error(`The closing-parenthesis was not found`);
-                }
-
-                iterator.index++;
-                return new GroupNode(group);
+                return new UndefinedValueNode();
             }
         }
 
-        throw Error(`Not supported constant value token`);
+        throw Error(`Expected an object accessor or a value token, but received ${this._stringify(iterator.query, token)}`);
     }
 
-    private _object(iterator: NodeIterator): ParserNode {
+    private _groupStart(iterator: NodeIterator): ParserNode | null {
+        const left = this._inverse(iterator);
         const token = this._getCurrentToken(iterator);
-        if (token.tokenType !== "Object") {
-            throw Error(`An object token was expected`);
+        if (token.tokenType === "GroupStart") {
+            iterator.index++;
+            const groupNode = new GroupNode(this._lambda(iterator));
+            const groupEndToken = this._getCurrentToken(iterator);
+            if (groupEndToken.tokenType !== "GroupEnd") {
+                throw Error(`No closing parenthesis was found for the group expression: ${this._stringify(iterator.query, groupEndToken)}`);
+            }
+
+            iterator.index++;
+            return groupNode;
         }
 
-        iterator.index++;
-        return new ObjectAccessorNode(this._stringify(iterator.query, token));
+        return left;
+    }
+
+    private _inverse(iterator: NodeIterator): ParserNode | null {
+        const token = this._getCurrentToken(iterator);
+        if (token.tokenType === "Inverse") {
+            iterator.index++;
+            return new InverseNode(this._function(iterator));
+        }
+
+        return null;
     }
 
     private _getCurrentToken(iterator: NodeIterator): QueryToken {

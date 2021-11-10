@@ -11,8 +11,8 @@ import {
     DYNAMODB_ATTRIBUTE_TYPE,
     DynamoDBAttributeSchema
 } from "../mappers/schemaBuilders";
-import {AttributeValue, ExpressionAttributeValueMap} from "aws-sdk/clients/dynamodb";
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
+import { AttributeValue } from '@aws-sdk/client-dynamodb'
 
 const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
     ["Equals", "="],
@@ -32,13 +32,13 @@ type TraversalContext = {
 
 export class DynamoDBExpressionTransformer {
     private readonly _recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>;
-    private readonly _expressionAttributeValues: ExpressionAttributeValueMap;
+    private readonly _expressionAttributeValues: Map<string, AttributeValue>;
     constructor(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>) {
         this._recordSchema = recordSchema;
-        this._expressionAttributeValues = {};
+        this._expressionAttributeValues = new Map<string, AttributeValue>();
     }
 
-    get expressionAttributeValues(): ExpressionAttributeValueMap {
+    get expressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
         return this._expressionAttributeValues;
     }
 
@@ -175,7 +175,7 @@ export class DynamoDBExpressionTransformer {
             args.push(instance);
         }
 
-        node.arguments.forEach(arg => {
+        node.args.forEach(arg => {
             this._visit(arg, context);
             if (context.stack.length === 0) {
                 throw Error(`The function argument was not evaluated`);
@@ -198,9 +198,9 @@ export class DynamoDBExpressionTransformer {
         switch (childNode.nodeType){
             case 'ObjectAccessor': {
                 const objectAccessor = <ObjectAccessorNode>childNode;
-                let schema = this._tryFindSchemaByPath(objectAccessor.accessor, context.rootParameterName);
+                let schema = this._tryFindSchemaByPath(objectAccessor.value, context.rootParameterName);
                 if (!schema) {
-                    throw Error(`The member schema was not found. Failed to inverse ${objectAccessor.accessor}`);
+                    throw Error(`The member schema was not found. Failed to inverse ${objectAccessor.value}`);
                 }
 
                 if (inverseTimes > 1 || schema.lastChildAttributeType !== "BOOL") {
@@ -226,7 +226,7 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _visitObject(node: ObjectAccessorNode, context: TraversalContext) {
-        const objectValue = this._evalObjectAccessorValue(node.accessor, context)
+        const objectValue = this._evalObjectAccessorValue(node.value, context)
         context.stack.push(objectValue);
     }
 
@@ -302,11 +302,11 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _tryAsBool(node: ParserNode, value: string, context: TraversalContext): string {
-        if (node.nodeType !== 'ObjectAccessor' || this._expressionAttributeValues.hasOwnProperty(value)) {
+        if (node.nodeType !== 'ObjectAccessor' || this._expressionAttributeValues.has(value)) {
             return value;
         }
 
-        const memberAccessor = (<ObjectAccessorNode>node).accessor;
+        const memberAccessor = (<ObjectAccessorNode>node).value;
         const schema = this._tryFindSchemaByPath(memberAccessor, context.rootParameterName);
         if (schema) {
             if (schema.lastChildAttributeType === "BOOL") {
@@ -320,7 +320,7 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _tryGetAsFilterAttribute(objectSchemaNode: ParserNode, value: string, context: TraversalContext): string {
-        if (this._expressionAttributeValues.hasOwnProperty(value) || objectSchemaNode.nodeType !== 'ObjectAccessor') {
+        if (this._expressionAttributeValues.has(value) || objectSchemaNode.nodeType !== 'ObjectAccessor') {
             return value;
         }
 
@@ -328,13 +328,13 @@ export class DynamoDBExpressionTransformer {
             return this._setFilterAttributeValue(true, "NULL");
         }
 
-        const memberAccessor = (<ObjectAccessorNode>objectSchemaNode).accessor;
+        const memberAccessor = (<ObjectAccessorNode>objectSchemaNode).value;
         let schema = this._tryFindSchemaByPath(memberAccessor, context.rootParameterName);
         if (schema) {
             return this._setFilterAttributeValue(value, schema.attributeType);
         }
 
-        schema = this._tryFindSchemaByPath((<ObjectAccessorNode>objectSchemaNode).accessor, context.rootParameterName, "length");
+        schema = this._tryFindSchemaByPath((<ObjectAccessorNode>objectSchemaNode).value, context.rootParameterName, "length");
         if (schema) {
             return this._setFilterAttributeValue(value, "N");
         }
@@ -406,25 +406,27 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _setFilterAttributeValue(attributeValue: any, attributeType: DYNAMODB_ATTRIBUTE_TYPE): string {
-        const keys = Object.getOwnPropertyNames(this._expressionAttributeValues);
         let matchingAttribute: AttributeValue | undefined;
-        let index = 0;
-        for(; index < keys.length; index++) {
-            const value = this._expressionAttributeValues[keys[index]];
-            if (value[attributeType] === attributeValue) {
+        const keysIterator = this._expressionAttributeValues.keys();
+        let keyEntry = keysIterator.next();
+        while (!keyEntry.done) {
+            const value: any = this._expressionAttributeValues.get(keyEntry.value);
+            if (Object.hasOwnProperty(attributeType) && value[attributeType] === attributeValue) {
                 matchingAttribute = value;
                 break;
             }
+
+            keyEntry = keysIterator.next();
         }
 
         if (matchingAttribute) {
-            return keys[index];
+            return keyEntry.value;
         }
 
-        const newAttribute = {};
+        const newAttribute: any = {};
         newAttribute[attributeType] = attributeValue;
-        const newKey = `__p_${keys.length}`;
-        this._expressionAttributeValues[newKey] = newAttribute;
+        const newKey = `__p_${this._expressionAttributeValues.size}`;
+        this._expressionAttributeValues.set(newKey, newAttribute);
         return newKey;
     }
 

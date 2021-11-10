@@ -11,14 +11,14 @@ export abstract class ParserNode {
 }
 
 export class ObjectAccessorNode extends ParserNode {
-    private readonly _propertyAccessor: string;
+    private readonly _value: string;
     constructor(value: string) {
         super();
-        this._propertyAccessor = value;
+        this._value = value;
     }
 
-    get accessor(): string {
-        return this._propertyAccessor;
+    get value(): string {
+        return this._value;
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {
@@ -29,12 +29,12 @@ export class ObjectAccessorNode extends ParserNode {
 export class FunctionNode extends ParserNode{
     private readonly _functionName: string;
     private readonly _instance: ObjectAccessorNode;
-    private readonly _argument: ParserNode | null;
-    constructor(functionName: string, instance: ObjectAccessorNode, arg: ParserNode | null) {
+    private readonly _args: ParserNode;
+    constructor(functionName: string, instance: ObjectAccessorNode, args: ParserNode) {
         super();
         this._functionName = functionName;
         this._instance = instance;
-        this._argument = arg;
+        this._args = args;
     }
 
     get functionName(): string {
@@ -45,12 +45,12 @@ export class FunctionNode extends ParserNode{
         return this._instance;
     }
 
-    get arguments(): ParserNode[] {
-        if (this._argument) {
-            return [this._argument];
+    get args(): ParserNode[] {
+        if (this._args.nodeType === "Arguments"){
+            return (<ArgumentsNode>this._args).args;
         }
 
-        return [];
+       return [this._args];
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {
@@ -82,7 +82,7 @@ export class BooleanOperationNode extends ParserNode {
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {
-        return "BooleanOperation";;
+        return "BooleanOperation";
     }
 }
 export class CompareOperationNode extends ParserNode {
@@ -165,17 +165,11 @@ export class LambdaExpressionNode extends ParserNode {
     }
 }
 
-export class StringValueNode extends ParserNode {
-    private readonly _value: string;
+export class StringValueNode extends ObjectAccessorNode {
     private readonly _isFormatString: boolean;
     constructor(value: string, isFormatString: boolean) {
-        super();
-        this._value = value;
+        super(value);
         this._isFormatString = isFormatString;
-    }
-
-    get value(): string {
-        return this._value;
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {

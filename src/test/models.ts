@@ -88,7 +88,7 @@ export class ClocksQuery extends DynamoDBQueryIndexBase<ClockRecord> {
     }
 
     tableName(): string {
-        return "unit_test";
+        return "unit_test_table";
     }
 
 }
@@ -110,7 +110,7 @@ export class PartitionKey implements DynamoDBPrimaryKey {
 export class RangeKey implements DynamoDBPrimaryKey {
     private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE;
     constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE = 'Equals') {
-        this.attributeName = 'RecordId';
+        this.attributeName = 'Id';
         this.attributeValue = sortValue;
         this._comparisonOperator = operator;
     }

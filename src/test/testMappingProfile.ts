@@ -95,8 +95,6 @@ export class ClockRecordSchemaSource extends DynamoDBRecordSchemaSourceBase<Cloc
 export class TestMappingProfile implements DynamoDBMappingProfile {
     register(builder: MappingBuilder): void {
         builder
-            .use(RECORD_TYPES.ClockRecord, new ClockRecordSchemaSource());
-        builder
             .createReaderFor<ClockRecord>(RECORD_TYPES.ClockRecord)
             .forMember(x => x.totalSegments, readAs => readAs.asNumber("RECORD_DATA.TOTAL_SEGMENTS"))
             .forMember(x => x.brand, readAs => readAs.asString("RECORD_DATA.BRAND"))

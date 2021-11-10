@@ -2,10 +2,18 @@ import {DynamoService} from "../services/dynamoService";
 import { ClocksQuery} from "./models";
 import {DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
 import {ClockRecordSchemaSource} from "./testMappingProfile";
-import {mocked} from "ts-jest/utils";
-import {DynamoDB} from "aws-sdk";
+import {DynamoDB, config, SharedIniFileCredentials} from "aws-sdk";
+import {DynamoDBClientResolver} from "../services/dynamoResolver";
 
-const dynamoClient = mocked<DynamoDB>(new DynamoDB(), true);
+class AppDynamoDBClientResolver implements DynamoDBClientResolver {
+    resolve(): DynamoDB {
+        config.update({ region:'us-west-2' });
+        const credentials = new SharedIniFileCredentials({ profile: 'integrationTest' });
+        config.credentials = credentials;
+        const client = new DynamoDB();
+        return client;
+    }
+}
 test("Must Read Values From Parameters Map Context Object", async () => {
     const clockQuery = new ClocksQuery();
     const schemaSources = new Map<symbol, DynamoDBRecordSchemaSourceBase<any>>(
@@ -14,9 +22,7 @@ test("Must Read Values From Parameters Map Context Object", async () => {
         ]
     );
 
-    const dynamoService = new DynamoService({resolve(): DynamoDB {
-        return dynamoClient;
-        }}, schemaSources);
+    const dynamoService = new DynamoService(new AppDynamoDBClientResolver(), schemaSources);
     const requestCtx = {
         clockType: 'Analog',
         brand: "CTX_Fossil"
@@ -24,7 +30,6 @@ test("Must Read Values From Parameters Map Context Object", async () => {
 
     const query = dynamoService
         .query(new ClocksQuery())
-        .where((r, ctx) => !!r.clockDetails && (r.clockDetails.serialNumber !== null || !r.clockDetails.madeIn.includes("US")), requestCtx)
         .take(1)
         .sortByAscending();
     const clockRecords = await query.listAsync()

@@ -75,11 +75,6 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
     }
 
     async listAsync(): Promise<DynamoDBQueryResult<TRecord>> {
-        const result: DynamoDBQueryResult<TRecord> = {
-            lastKey: null,
-            records: [],
-            total: 0
-        };
         const queryInput = this._getQueryInput();
         this._filterExpressions.forEach(filterExp => {
             if (queryInput.FilterExpression) {
@@ -91,22 +86,33 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         });
 
         this._expressionTransformer.expressionAttributeValues.forEach((value, key) => {
-            if (!queryInput.ExpressionAttributeValues) {
-                queryInput.ExpressionAttributeValues = {};
-            }
-
-            queryInput.ExpressionAttributeValues[key] = value;
+            queryInput.ExpressionAttributeValues![key] = value;
         });
 
+        const keyExpression: string[] = [];
+        this._recordQuery.getPrimaryKeys()
+            .forEach((value, index) => {
+                const key = `:primary${index}`;
+                queryInput.ExpressionAttributeValues![key] = {
+                    S: value.attributeValue
+                }
+                keyExpression.push(`${value.attributeName} = ${key}`)
+            });
+        queryInput.KeyConditionExpression = keyExpression.join(' AND ');
         const client = this._clientResolver.resolve();
         const response = await client.query(queryInput).promise();
-        return Promise.resolve(result)
+        return {
+            lastKey: null,
+            records: [],
+            total: 0
+        };
     }
 
     private _getQueryInput(): QueryInput {
         if (!this._ddbQueryInput) {
             this._ddbQueryInput = {
-                TableName: this._recordQuery.tableName()
+                TableName: this._recordQuery.tableName(),
+                ExpressionAttributeValues: {}
             };
         }
 

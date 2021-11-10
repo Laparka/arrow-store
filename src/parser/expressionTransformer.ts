@@ -237,7 +237,6 @@ export class DynamoDBExpressionTransformer {
         }
 
         const left = context.stack.pop()!;
-
         this._visit(node.right, context);
         if (context.stack.length !== 1) {
             throw Error(`The right boolean operand is required: ${context.stack.join(', ')}`);
@@ -302,7 +301,7 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _tryAsBool(node: ParserNode, value: string, context: TraversalContext): string {
-        if (node.nodeType !== 'ObjectAccessor' || this._expressionAttributeValues.has(value)) {
+        if (node.nodeType !== 'ObjectAccessor' || value && value.startsWith(':')) {
             return value;
         }
 
@@ -320,7 +319,7 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _tryGetAsFilterAttribute(objectSchemaNode: ParserNode, value: string, context: TraversalContext): string {
-        if (this._expressionAttributeValues.has(value) || objectSchemaNode.nodeType !== 'ObjectAccessor') {
+        if (value && value.startsWith(':') || objectSchemaNode.nodeType !== 'ObjectAccessor') {
             return value;
         }
 
@@ -425,7 +424,7 @@ export class DynamoDBExpressionTransformer {
 
         const newAttribute: any = {};
         newAttribute[attributeType] = attributeValue;
-        const newKey = `__p_${this._expressionAttributeValues.size}`;
+        const newKey = `:p${this._expressionAttributeValues.size}`;
         this._expressionAttributeValues.set(newKey, newAttribute);
         return newKey;
     }

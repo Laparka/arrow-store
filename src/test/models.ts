@@ -27,6 +27,18 @@ export class ClockRecordId extends DynamoDBQueryIndexBase<ClockRecord> {
         return ClockRecord;
     }
 
+    indexName(): string | undefined {
+        return undefined;
+    }
+
+    isConsistentRead(): boolean {
+        return false;
+    }
+
+    tableName(): string {
+        return "unit_test_table";
+    }
+
 }
 
 export type CLOCK_TYPE = 'Unknown' |  'Digital' | 'Analog';
@@ -69,6 +81,14 @@ export class ClocksQuery extends DynamoDBQueryIndexBase<ClockRecord> {
 
     protected getRecordType(): Ctor<ClockRecord> {
         return ClockRecord;
+    }
+
+    isConsistentRead(): boolean {
+        return false;
+    }
+
+    tableName(): string {
+        return "unit_test";
     }
 
 }

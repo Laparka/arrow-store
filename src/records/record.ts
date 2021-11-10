@@ -9,19 +9,25 @@ export interface DynamoDBPrimaryKey {
 }
 
 export interface DynamoDBQueryIndex {
-    get indexName(): string | undefined;
+    indexName(): string | undefined;
+    isConsistentRead(): boolean;
+    tableName(): string;
     getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKey>;
 }
 
 export type Ctor<TRecord extends DynamoDBRecord> = new (...args: any[]) => TRecord;
 export abstract class DynamoDBQueryIndexBase<TRecord extends DynamoDBRecord> implements DynamoDBQueryIndex {
     abstract getRecordTypeId(): symbol;
-    protected abstract getRecordType(): Ctor<TRecord>;
     abstract getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKey>;
 
-    get indexName(): string | undefined {
+    indexName(): string | undefined {
         return undefined;
     }
+
+    abstract isConsistentRead(): boolean;
+    abstract tableName(): string;
+
+    protected abstract getRecordType(): Ctor<TRecord>;
 }
 
 export interface DynamoDBRecord {

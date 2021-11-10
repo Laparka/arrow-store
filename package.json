@@ -49,6 +49,6 @@
     "lib": "lib"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.40.0"
+    "aws-sdk": "^2.1025.0"
   }
 }

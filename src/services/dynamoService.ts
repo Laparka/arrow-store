@@ -1,11 +1,14 @@
 import {DynamoDBRecord, DynamoDBQueryIndexBase} from "../records/record";
 import {DynamoQuery} from "./dynamoQuery";
 import {DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
+import {DynamoDBClientResolver} from "./dynamoResolver";
 
 export class DynamoService {
+    private readonly _clientResolver: DynamoDBClientResolver;
     private readonly _schemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>;
 
-    constructor(schemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>) {
+    constructor(clientResolver: DynamoDBClientResolver, schemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>) {
+        this._clientResolver = clientResolver;
         this._schemaSources = schemaSources;
     }
 
@@ -15,6 +18,6 @@ export class DynamoService {
             throw Error(`The record schema was not found`);
         }
 
-        return new DynamoQuery<TRecord>(query, recordSchema);
+        return new DynamoQuery<TRecord>(query, recordSchema, this._clientResolver);
     }
 }

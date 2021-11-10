@@ -12,7 +12,7 @@ import {
     DynamoDBAttributeSchema
 } from "../mappers/schemaBuilders";
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
-import { AttributeValue } from '@aws-sdk/client-dynamodb'
+import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
 const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
     ["Equals", "="],

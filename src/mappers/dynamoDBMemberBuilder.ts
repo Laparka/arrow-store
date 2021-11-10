@@ -25,6 +25,13 @@ export default class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSch
     }
 
     asObject(attributeName: string, map: (attribute: DynamoDBRecordSchemaBuilder<TMember>) => DynamoDBRecordSchemaBuilder<TMember>): void {
+        // Introduce the M-schema for the nested object
+        this._attributeSchema.set(this._memberName, {
+            attributeName: attributeName,
+            attributeType: "M",
+            lastChildAttributeType: "M"
+        });
+
         const nestedBuilder = new FromAttributeSchemaBuilder<TMember>();
         map(nestedBuilder);
         nestedBuilder.getRecordSchema().forEach((memberSchema, memberName) => {

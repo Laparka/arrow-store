@@ -4,11 +4,13 @@ import {DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
 import {ClockRecordSchemaSource} from "./testMappingProfile";
 import {DynamoDB, config, SharedIniFileCredentials} from "aws-sdk";
 import {DynamoDBClientResolver} from "../services/dynamoResolver";
+import {DefaultSchemaProvider} from "../mappers/defaultSchemaProvider";
+import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
 
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {
         config.update({ region:'us-west-2' });
-        const credentials = new SharedIniFileCredentials({ profile: 'integrationTest' });
+        const credentials = new SharedIniFileCredentials({ profile: 'kostyl-integration' });
         config.credentials = credentials;
         const client = new DynamoDB();
         return client;
@@ -22,7 +24,8 @@ test("Must Read Values From Parameters Map Context Object", async () => {
         ]
     );
 
-    const dynamoService = new DynamoService(new AppDynamoDBClientResolver(), schemaSources);
+    const schemaProvider =  new DefaultSchemaProvider(schemaSources);
+    const dynamoService = new DynamoService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const requestCtx = {
         clockType: 'Analog',
         brand: "CTX_Fossil"

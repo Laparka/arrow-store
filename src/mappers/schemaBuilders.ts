@@ -1,4 +1,5 @@
 import {DynamoDBRecord} from "../records/record";
+import {DynamoDBRecordMapper} from "./recordMapper";
 
 export abstract class DynamoDBRecordSchemaSourceBase<TRecord extends DynamoDBRecord> {
     abstract getReadingSchema(): ReadonlyMap<string, DynamoDBAttributeSchema>;
@@ -17,7 +18,8 @@ export interface DynamoDBMemberSchemaBuilder<TMember> {
     getMemberSchema(): ReadonlyMap<string, DynamoDBAttributeSchema>;
 }
 
-export interface DynamoDBMappingProvider {
+export interface DynamoDBSchemaProvider {
+    getReadingSchema(recordTypeId: symbol): ReadonlyMap<string, DynamoDBAttributeSchema>;
 }
 
 export interface MappingBuilder {

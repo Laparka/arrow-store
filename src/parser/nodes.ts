@@ -1,5 +1,4 @@
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
-import {TokenType} from "../lexer/queryTokens";
 
 export type BOOLEAN_OPERATOR = 'And' | 'Or';
 export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue" | "UndefinedValue"
@@ -90,39 +89,11 @@ export class CompareOperationNode extends ParserNode {
     private readonly _leftOperand: ParserNode;
     private readonly _rightOperand: ParserNode;
 
-    constructor(comparisonOperator: TokenType, left: ParserNode, right: ParserNode) {
+    constructor(comparisonOperator: COMPARE_OPERATOR_TYPE, left: ParserNode, right: ParserNode) {
         super();
         this._leftOperand = left;
         this._rightOperand  = right;
-        switch (comparisonOperator) {
-            case 'Equals': {
-                this._comparisonOperator = 'Equals';
-                break;
-            }
-            case 'NotEquals': {
-                this._comparisonOperator = 'NotEquals';
-                break;
-            }
-            case 'GreaterThan': {
-                this._comparisonOperator = 'GreaterThan';
-                break;
-            }
-            case 'GreaterOrEquals': {
-                this._comparisonOperator = 'GreaterThanOrEquals';
-                break;
-            }
-            case 'LessThanOrEquals': {
-                this._comparisonOperator = 'LessThanOrEquals';
-                break;
-            }
-            case 'LessThan': {
-                this._comparisonOperator = 'LessThan';
-                break;
-            }
-            default: {
-                throw Error(`Invalid comparison operator ${comparisonOperator}`);
-            }
-        }
+        this._comparisonOperator = comparisonOperator;
     }
 
     get operator(): COMPARE_OPERATOR_TYPE {

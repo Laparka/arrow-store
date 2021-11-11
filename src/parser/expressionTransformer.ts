@@ -11,7 +11,7 @@ import {
     DYNAMODB_ATTRIBUTE_TYPE,
     DynamoDBAttributeSchema
 } from "../mappers/schemaBuilders";
-import {COMPARE_OPERATOR_TYPE} from "../records/record";
+import {COMPARE_OPERATOR_TYPE, FUNCTION_OPERATOR_TYPE} from "../records/record";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
 const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
@@ -33,9 +33,11 @@ type TraversalContext = {
 export class DynamoDBExpressionTransformer {
     private readonly _recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>;
     private readonly _expressionAttributeValues: Map<string, AttributeValue>;
-    constructor(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>) {
+    private readonly _expressionAttributeParamPrefix: string;
+    constructor(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expressionAttributeParamPrefix?: string) {
         this._recordSchema = recordSchema;
         this._expressionAttributeValues = new Map<string, AttributeValue>();
+        this._expressionAttributeParamPrefix = expressionAttributeParamPrefix ?? "p";
     }
 
     get expressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
@@ -424,7 +426,7 @@ export class DynamoDBExpressionTransformer {
 
         const newAttribute: any = {};
         newAttribute[attributeType] = attributeValue;
-        const newKey = `:p${this._expressionAttributeValues.size}`;
+        const newKey = `:${this._expressionAttributeParamPrefix}${this._expressionAttributeValues.size}`;
         this._expressionAttributeValues.set(newKey, newAttribute);
         return newKey;
     }
@@ -475,5 +477,48 @@ export class DynamoDBExpressionTransformer {
         }
 
         return segments;
+    }
+
+    tryGetFunctionName(operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE): string | null {
+        switch (operator) {
+            case "BeginsWith": {
+                return "begins_with";
+            }
+            case "Contains": {
+                return "contains";
+            }
+
+            case "Exists": {
+                return "attribute_exists";
+            }
+
+            case "NotExists": {
+                return "attribute_not_exists";
+            }
+        }
+
+        return null;
+    }
+
+    toValueNode(attributeType: DYNAMODB_ATTRIBUTE_TYPE, attributeValue: any): ParserNode {
+        switch (attributeType) {
+            case "BOOL": {
+                return new BoolValueNode(attributeValue);
+            }
+
+            case "S": {
+                return new StringValueNode(attributeValue, false);
+            }
+
+            case "N": {
+                return new NumberValueNode(attributeValue);
+            }
+
+            case "NULL": {
+                return new NullValueNode();
+            }
+        }
+
+        throw Error(`Not supported attribute type as a constant value type`);
     }
 }

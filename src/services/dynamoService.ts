@@ -1,23 +1,21 @@
-import {DynamoDBRecord, DynamoDBQueryIndexBase} from "../records/record";
+import {DynamoDBRecord, DynamoDBRecordIndexBase} from "../records/record";
 import {DynamoQuery} from "./dynamoQuery";
-import {DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
+import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBClientResolver} from "./dynamoResolver";
+import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 
 export class DynamoService {
     private readonly _clientResolver: DynamoDBClientResolver;
-    private readonly _schemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>;
+    private readonly _schemaProvider: DynamoDBSchemaProvider;
+    private readonly _recordMapper: DynamoDBRecordMapper;
 
-    constructor(clientResolver: DynamoDBClientResolver, schemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>) {
+    constructor(clientResolver: DynamoDBClientResolver, schemaProvider: DynamoDBSchemaProvider, recordMapper: DynamoDBRecordMapper) {
         this._clientResolver = clientResolver;
-        this._schemaSources = schemaSources;
+        this._schemaProvider = schemaProvider;
+        this._recordMapper = recordMapper;
     }
 
-    query<TRecord extends DynamoDBRecord>(query: DynamoDBQueryIndexBase<TRecord>): DynamoQuery<TRecord>{
-        const recordSchema  = this._schemaSources.get(query.getRecordTypeId())?.getReadingSchema();
-        if (!recordSchema) {
-            throw Error(`The record schema was not found`);
-        }
-
-        return new DynamoQuery<TRecord>(query, recordSchema, this._clientResolver);
+    query<TRecord extends DynamoDBRecord>(query: DynamoDBRecordIndexBase<TRecord>): DynamoQuery<TRecord>{
+        return new DynamoQuery<TRecord>(query, this._schemaProvider, this._recordMapper, this._clientResolver);
     }
 }

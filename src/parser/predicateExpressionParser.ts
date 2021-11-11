@@ -1,4 +1,4 @@
-import {QueryToken, TokenType} from "../lexer/queryTokens";
+import {QueryToken, TOKEN_TYPE} from "../lexer/queryTokens";
 import {
     BooleanOperationNode,
     CompareOperationNode,
@@ -9,8 +9,13 @@ import {
     LambdaExpressionNode,
     NumberValueNode,
     FunctionNode,
-    InverseNode, ArgumentsNode, NullValueNode, UndefinedValueNode, BoolValueNode
+    InverseNode,
+    ArgumentsNode,
+    NullValueNode,
+    UndefinedValueNode,
+    BoolValueNode
 } from "./nodes";
+import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
 type NodeIterator = {
     index: number;
@@ -19,7 +24,7 @@ type NodeIterator = {
     tokens: ReadonlyArray<QueryToken>;
 };
 
-const _comparisonTokens: TokenType[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterOrEquals', 'LessThan', 'LessThanOrEquals'];
+const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterThanOrEquals', 'LessThan', 'LessThanOrEquals'];
 
 export default class PredicateExpressionParser {
     parse(query: string, tokens: ReadonlyArray<QueryToken>): ParserNode {
@@ -68,7 +73,7 @@ export default class PredicateExpressionParser {
         if (_comparisonTokens.findIndex(x => x === token.tokenType) >= 0) {
             iterator.index++;
             const right = this._compare(iterator);
-            return new CompareOperationNode(token.tokenType, left, right);
+            return new CompareOperationNode(<COMPARE_OPERATOR_TYPE>token.tokenType, left, right);
         }
 
         return left;

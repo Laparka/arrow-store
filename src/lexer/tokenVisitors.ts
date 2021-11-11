@@ -1,4 +1,4 @@
-import {QueryToken, TokenType} from "./queryTokens";
+import {QueryToken, TOKEN_TYPE} from "./queryTokens";
 
 export interface TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number;
@@ -181,12 +181,12 @@ export class LogicalOperatorTokenVisitor implements TokenVisitor {
 
 export class BooleanOperatorTokenVisitor implements TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number {
-        let tokenType: TokenType;
+        let tokenType: TOKEN_TYPE;
         let endIndex = index;
         switch (query[index]) {
             case '>': {
                 if (query[++endIndex] === '=') {
-                    tokenType = 'GreaterOrEquals';
+                    tokenType = 'GreaterThanOrEquals';
                     endIndex++;
                 }
                 else {

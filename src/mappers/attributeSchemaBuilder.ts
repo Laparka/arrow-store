@@ -5,7 +5,7 @@ import {
 } from "./schemaBuilders";
 import DynamoDBMemberBuilder from "./dynamoDBMemberBuilder";
 
-export default class FromAttributeSchemaBuilder<TRecord extends {}> implements DynamoDBRecordSchemaBuilder<TRecord> {
+export default class AttributeSchemaBuilder<TRecord extends {}> implements DynamoDBRecordSchemaBuilder<TRecord> {
     private static readonly _ReadMemberHandler: ProxyHandler<any> = {
         get(target: any, p: string | symbol, receiver: any): any {
             return p;
@@ -16,7 +16,7 @@ export default class FromAttributeSchemaBuilder<TRecord extends {}> implements D
     private readonly _membersSchema: Map<string, DynamoDBAttributeSchema>;
 
     constructor() {
-        this._proxyRecord = new Proxy<TRecord>(<TRecord>{}, FromAttributeSchemaBuilder._ReadMemberHandler);
+        this._proxyRecord = new Proxy<TRecord>(<TRecord>{}, AttributeSchemaBuilder._ReadMemberHandler);
         this._membersSchema = new Map<string, DynamoDBAttributeSchema>();
     }
 

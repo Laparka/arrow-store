@@ -6,7 +6,10 @@ import {
 } from "../mappers/schemaBuilders";
 
 export class ClockRecordSchemaSource extends DynamoDBRecordSchemaSourceBase<ClockRecord> {
-    getReadingSchema(): Map<string, DynamoDBAttributeSchema> {
+    getWritingSchema(): ReadonlyMap<string, DynamoDBAttributeSchema> {
+        return this.getSchema();
+    }
+    getSchema(): Map<string, DynamoDBAttributeSchema> {
         return new Map<string, DynamoDBAttributeSchema>([
             ["clockType", {
                 attributeName: "RECORD_DATA",

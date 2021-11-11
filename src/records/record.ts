@@ -5,13 +5,22 @@ export type COMPARE_OPERATOR_TYPE = 'Equals' | 'NotEquals' | 'GreaterThan' | 'Gr
 export type FUNCTION_OPERATOR_TYPE = "Contains" | "BeginsWith" | "Exists" | "NotExists";
 
 export type PRIMARY_ATTRIBUTE_TYPE = "Partition" | "Range";
-export interface DynamoDBPrimaryAttribute {
-    get name(): string;
-    get value(): any;
-    get valueType(): DYNAMODB_ATTRIBUTE_TYPE;
-    get attributeType(): PRIMARY_ATTRIBUTE_TYPE;
-    get operator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
+
+export interface DynamoDBPrimaryKeyExpression extends PrimaryKeyValue {
+    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE;
+    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
 }
+
+export type PrimaryKeyValue = {
+    getAttributeName(): string,
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE,
+    getAttributeValue(): any
+};
+
+export type PrimaryKeysMap = {
+    partition: PrimaryKeyValue,
+    range: PrimaryKeyValue
+};
 
 export interface DynamoDBRecordIndex {
     getRecordTypeId(): symbol;
@@ -19,7 +28,7 @@ export interface DynamoDBRecordIndex {
     getIndexName(): string | undefined;
     isConsistentRead(): boolean;
     getTableName(): string;
-    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryAttribute>;
+    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression>;
 }
 
 export type Ctor<TRecord extends DynamoDBRecord> = new (...args: any[]) => TRecord;
@@ -28,7 +37,7 @@ export abstract class DynamoDBRecordIndexBase<TRecord extends DynamoDBRecord> im
         return undefined;
     }
 
-    abstract getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryAttribute>;
+    abstract getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression>;
     abstract getRecordTypeId(): symbol;
     abstract isConsistentRead(): boolean;
     abstract getTableName(): string;
@@ -49,7 +58,7 @@ export abstract class DynamoDBRecordBase<TRecordId extends DynamoDBRecordIndex> 
 }
 
 export type DynamoDBQueryResult<TRecord extends DynamoDBRecord> = {
-    lastKey: DynamoDBRecordIndexBase<TRecord> | null;
+    lastKey: PrimaryKeysMap | null;
     total: number;
     records: ReadonlyArray<TRecord>;
 }

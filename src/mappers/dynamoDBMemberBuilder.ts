@@ -4,7 +4,7 @@ import {
     DynamoDBMemberSchemaBuilder,
     DynamoDBRecordSchemaBuilder
 } from "./schemaBuilders";
-import FromAttributeSchemaBuilder from "./fromAttributeSchemaBuilder";
+import AttributeSchemaBuilder from "./attributeSchemaBuilder";
 
 export default class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSchemaBuilder<TMember> {
     private readonly _memberName: string;
@@ -32,7 +32,7 @@ export default class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSch
             lastChildAttributeType: "M"
         });
 
-        const nestedBuilder = new FromAttributeSchemaBuilder<TMember>();
+        const nestedBuilder = new AttributeSchemaBuilder<TMember>();
         map(nestedBuilder);
         nestedBuilder.getRecordSchema().forEach((memberSchema, memberName) => {
             const name = [this._memberName, memberName].join('.');

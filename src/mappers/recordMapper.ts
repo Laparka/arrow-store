@@ -1,11 +1,56 @@
-import {DynamoDBRecord} from "../records/record";
-import {DynamoDBAttributeSchema, DynamoDBSchemaProvider} from "./schemaBuilders";
+import {
+    COMPARE_OPERATOR_TYPE,
+    DynamoDBPrimaryKeyExpression,
+    DynamoDBRecord, DynamoDBRecordIndex,
+    DynamoDBRecordIndexBase, FUNCTION_OPERATOR_TYPE, PRIMARY_ATTRIBUTE_TYPE, PrimaryKeysMap, PrimaryKeyValue
+} from "../records/record";
+import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema, DynamoDBSchemaProvider} from "./schemaBuilders";
 import {DynamoDB} from "aws-sdk";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
+import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
+import {
+    BooleanOperationNode,
+    CompareOperationNode,
+    FunctionNode,
+    ObjectAccessorNode,
+    ParserNode
+} from "../parser/nodes";
+
+export type KeyExpression = {
+    expression: string,
+    attributeValues: ReadonlyMap<string, AttributeValue>
+};
 
 export interface DynamoDBRecordMapper {
-    mapAttributes<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
-    mapRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap;
+    toKeyExpression(primaryKeys: ReadonlyArray<DynamoDBPrimaryKeyExpression>): KeyExpression;
+    toRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
+    toAttributeMap<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap;
+    toKeyAttribute(primaryKeys: ReadonlyArray<DynamoDBPrimaryKeyExpression>): DynamoDB.Key;
+    toPrimaryKey(primaryKeyAttribute: DynamoDB.Key | undefined): PrimaryKeysMap | null;
+}
+
+class PrimaryKeyValueImpl implements PrimaryKeyValue {
+    private readonly _attributeName: string;
+    private readonly _attributeType: DYNAMODB_ATTRIBUTE_TYPE;
+    private readonly _attributeValue: any;
+
+    constructor(attributeName: string, attributeType: DYNAMODB_ATTRIBUTE_TYPE, attributeValue: any) {
+        this._attributeName = attributeName;
+        this._attributeType = attributeType;
+        this._attributeValue = attributeValue;
+    }
+
+    getAttributeName(): string {
+        return this._attributeName;
+    }
+
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
+        return this._attributeType;
+    }
+
+    getAttributeValue(): any {
+        return this._attributeValue;
+    }
 }
 
 export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
@@ -15,7 +60,177 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         this._schemaProvider = schemaProvider;
     }
 
-    mapRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap {
+    toAttributeType(attributeType: string): DYNAMODB_ATTRIBUTE_TYPE {
+        switch (attributeType) {
+            case "S": {
+                return "S";
+            }
+            case "N": {
+                return "N";
+            }
+            case "B": {
+                return "B";
+            }
+            case "SS": {
+                return "SS";
+            }
+            case "NS": {
+                return "NS";
+            }
+            case "BS": {
+                return "BS";
+            }
+            case "M": {
+                return "M";
+            }
+            case "L": {
+                return "L";
+            }
+            case "NULL": {
+                return "NULL";
+            }
+            case "BOOL": {
+                return "BOOL";
+            }
+        }
+
+        throw Error(`Unknown attribute type ${attributeType}`);
+    }
+
+    castValue(attributeValue: any, attributeType: DYNAMODB_ATTRIBUTE_TYPE): any {
+        switch (attributeType) {
+            case "S": {
+                return `${attributeValue}`;
+            }
+
+            case "N": {
+                return parseFloat(attributeValue);
+            }
+
+            case "BOOL": {
+                return new Boolean(attributeValue);
+            }
+
+            case "NULL": {
+                return null;
+            }
+        }
+
+        throw Error(`Not a primitive type ${attributeType}`);
+    }
+
+    tryGetFunctionName(operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE): string | null {
+        switch (operator) {
+            case "BeginsWith": {
+                return "begins_with";
+            }
+            case "Contains": {
+                return "contains";
+            }
+
+            case "Exists": {
+                return "attribute_exists";
+            }
+
+            case "NotExists": {
+                return "attribute_not_exists";
+            }
+        }
+
+        return null;
+    }
+
+    toPrimaryKey(primaryKeyAttribute: DynamoDB.Key | undefined): PrimaryKeysMap | null {
+        if (!primaryKeyAttribute) {
+            return null;
+        }
+
+        const properties = Object.getOwnPropertyNames(primaryKeyAttribute);
+        if (properties.length !== 2) {
+            throw Error('Partition and range keys are required');
+        }
+
+        const rangeKey = this._toPrimaryKey(properties[1], primaryKeyAttribute, "Range");
+        const partitionKey = this._toPrimaryKey(properties[0], primaryKeyAttribute, "Partition");
+        return {
+            partition: partitionKey,
+            range: rangeKey
+        };
+    }
+
+    toKeyAttribute(primaryKeys: readonly DynamoDBPrimaryKeyExpression[]): DynamoDB.Key {
+        if (!primaryKeys || primaryKeys.length !== 2) {
+            throw Error(`Both partition and range keys are required`);
+        }
+
+        const keys: DynamoDB.Key = {};
+        let partitionExists = false;
+        let rangeExists = false;
+        for(let i = 0; i < primaryKeys.length; i++) {
+            const primaryKey = primaryKeys[i];
+            if (primaryKey.getCompareOperator() !== "Equals") {
+                throw Error(`The primary key operator must be always Equals when saving or reading by the RecordId`);
+            }
+
+            if (primaryKey.getPrimaryKeyType() === "Partition") {
+                partitionExists = true;
+            }
+
+            if (primaryKey.getPrimaryKeyType() === "Range") {
+                rangeExists = true;
+            }
+
+            const value = {};
+            keys[primaryKey.getAttributeName()] = value;
+            value[primaryKey.getAttributeType()] = primaryKey.getAttributeValue();
+        }
+
+        if (!partitionExists || !rangeExists) {
+            throw Error(`Both partition and range keys are required`);
+        }
+
+        return keys;
+    }
+
+    toKeyExpression(primaryKeys: readonly DynamoDBPrimaryKeyExpression[]): KeyExpression {
+        const dummySchema: ReadonlyMap<string, DynamoDBAttributeSchema> = new Map<string, DynamoDBAttributeSchema>();
+        const keyExpressionTransformer = new DynamoDBExpressionTransformer(dummySchema, "primary");
+        const expressions: ParserNode[] = [];
+        for (let i = 0; i < primaryKeys.length; i++) {
+            const key = primaryKeys[i];
+            let node: ParserNode;
+            const attributeNode = new ObjectAccessorNode(key.getAttributeName());
+            const valueNode = keyExpressionTransformer.toValueNode(key.getAttributeType(), key.getAttributeValue());
+            const functionName = this.tryGetFunctionName(key.getCompareOperator());
+            if (functionName) {
+                node = new FunctionNode(functionName, attributeNode, valueNode)
+            }
+            else {
+                node = new CompareOperationNode(<COMPARE_OPERATOR_TYPE>key.getCompareOperator(), attributeNode, valueNode);
+            }
+
+            expressions.push(node);
+        }
+
+        let evaluateNode: ParserNode;
+        if (expressions.length === 2) {
+            evaluateNode = new BooleanOperationNode("And", expressions[0], expressions[1])
+        }
+        else if (expressions.length === 1) {
+            evaluateNode = expressions[0];
+        }
+        else {
+            throw Error(`One or two query keys are required, but received ${expressions.length}`);
+        }
+
+        const keyExpression = keyExpressionTransformer.transform(evaluateNode);
+        return {
+            expression: keyExpression,
+            attributeValues: keyExpressionTransformer.expressionAttributeValues
+        };
+    }
+
+    toAttributeMap<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap {
         if (!recordTypeId) {
             throw Error(`The record type ID is missing`);
         }
@@ -33,7 +248,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         throw new Error("Method not implemented.");
     }
 
-    mapAttributes<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord {
+    toRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord {
         if (!recordTypeId) {
             throw Error(`The record type ID is missing`);
         }
@@ -183,5 +398,32 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         return attribute;
+    }
+
+    private _toPrimaryKey(attributeName: string, keyAttributeMap: DynamoDB.Key, primaryKeyType: PRIMARY_ATTRIBUTE_TYPE): PrimaryKeyValue {
+        if (!attributeName) {
+            throw Error(`The attribute name is missing`);
+        }
+
+        if (!keyAttributeMap) {
+            throw Error(`The key map attribute is missing`);
+        }
+
+        if (!primaryKeyType) {
+            throw Error(`The primary key type is missing`);
+        }
+
+        const attribute = keyAttributeMap[attributeName];
+        if (!attribute) {
+            throw Error(`The attribute ${attributeName} was not found in the key-map`);
+        }
+
+        const valueAccessors = Object.getOwnPropertyNames(attribute);
+        if (!valueAccessors || valueAccessors.length !== 1) {
+            throw Error(`The key attribute ${attributeName} must have one value accessor`);
+        }
+
+        const attributeType = this.toAttributeType(valueAccessors[0]);
+        return new PrimaryKeyValueImpl(attributeName, attributeType, this.castValue(attribute[attributeType], attributeType));
     }
 }

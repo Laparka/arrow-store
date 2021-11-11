@@ -1,9 +1,9 @@
-import {DynamoDBRecord, DynamoDBRecordIndexBase, PRIMARY_ATTRIBUTE_TYPE} from "../records/record";
+import {DynamoDBRecord, DynamoDBRecordIndexBase} from "../records/record";
 import {DynamoQuery} from "./dynamoQuery";
-import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
+import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBClientResolver} from "./dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {PutItemInput, UpdateItemInput} from "aws-sdk/clients/dynamodb";
+import {PutItemInput} from "aws-sdk/clients/dynamodb";
 
 export class DynamoService {
     private readonly _clientResolver: DynamoDBClientResolver;
@@ -35,25 +35,7 @@ export class DynamoService {
             throw Error(`The record type ID is missing, which is required for schema discovery and mapping`);
         }
 
-        const partitionKeys = recordId.getPrimaryKeys();
-        if (!partitionKeys || partitionKeys.length !== 2) {
-            throw Error(`The partition and range keys are required in order to save the record to DynamoDB`)
-        }
-
-        const requiredTypes = ["Partition", "Range"];
-        let checkSum = 3;
-        for(let i = 0; i < partitionKeys.length; i++) {
-            const foundIndex = requiredTypes.findIndex(x => x === partitionKeys[i].attributeType);
-            if (foundIndex >= 0) {
-                checkSum -= (foundIndex + 1);
-            }
-        }
-
-        if (checkSum !== 0) {
-            throw Error(`Both the Partition and Range keys are required at the recordId`);
-        }
-
-        const attributesToSave = this._recordMapper.mapRecord<TRecord>(typeId, record)
+        const attributesToSave = this._recordMapper.toAttributeMap<TRecord>(typeId, record)
         if (!attributesToSave) {
             throw Error(`Failed to map the record ${Symbol.keyFor(typeId)} to DynamoDB attributes`);
         }

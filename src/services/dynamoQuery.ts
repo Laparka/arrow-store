@@ -1,23 +1,16 @@
 import {
     DynamoDBQueryResult,
-    DynamoDBRecord,
-    DynamoDBRecordIndexBase,
-    DynamoDBPrimaryAttribute, COMPARE_OPERATOR_TYPE
+    DynamoDBRecord, DynamoDBRecordIndex,
+    DynamoDBRecordIndexBase
 } from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import PredicateExpressionParser from "../parser/predicateExpressionParser";
 import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
-import {DynamoDBAttributeSchema, DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
-import {AttributeValue, QueryInput} from 'aws-sdk/clients/dynamodb'
+import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
+import {QueryInput} from 'aws-sdk/clients/dynamodb'
 import {DynamoDBClientResolver} from "./dynamoResolver";
-import {
-    BooleanOperationNode,
-    CompareOperationNode,
-    FunctionNode,
-    ObjectAccessorNode,
-    ParserNode
-} from "../parser/nodes";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
+import {DynamoDB} from "aws-sdk";
 
 
 export class DynamoQuery<TRecord extends DynamoDBRecord> {
@@ -33,7 +26,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
     private readonly _filterExpressions: string[];
     private _expressionTransformer: DynamoDBExpressionTransformer | undefined;
     private _scanIndexFwd: boolean = false;
-    private _exclusiveStartKey: ReadonlyArray<DynamoDBPrimaryAttribute> | undefined;
+    private _exclusiveStartKey: DynamoDB.Key | undefined;
     private _limit: number | undefined;
 
     constructor(recordQuery: DynamoDBRecordIndexBase<TRecord>,
@@ -60,21 +53,12 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    skipTo(recordId: DynamoDBRecordIndexBase<TRecord>) : DynamoQuery<TRecord> {
+    skipTo(recordId: DynamoDBRecordIndex) : DynamoQuery<TRecord> {
         if (!recordId) {
             throw Error(`The recordId is missing`)
         }
 
-        const primaryKeys = recordId.getPrimaryKeys();
-        if (!primaryKeys || primaryKeys.length !== 2) {
-            throw Error(`The recordId must return both - the partition and range keys`);
-        }
-
-        if (primaryKeys.findIndex(x => !x.name || !x.value || x.operator !== "Equals") >= 0) {
-            throw Error(`Invalid partition or range key is provided for the exclusiveStartKey`);
-        }
-
-        this._exclusiveStartKey = primaryKeys;
+        this._exclusiveStartKey = this._recordMapper.toKeyAttribute(recordId.getPrimaryKeys());
         return this;
     }
 
@@ -109,7 +93,11 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
 
         const queryInput: QueryInput = {
             TableName: this._recordQuery.getTableName(),
-            ExpressionAttributeValues: {}
+            ExpressionAttributeValues: {},
+            ExclusiveStartKey: this._exclusiveStartKey,
+            ConsistentRead: this._recordQuery.isConsistentRead(),
+            ScanIndexForward: this._scanIndexFwd,
+            Limit: this._limit
         };
 
         this._filterExpressions.forEach(filterExp => {
@@ -125,78 +113,32 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
             queryInput.ExpressionAttributeValues![key] = value;
         });
 
-        if (this._exclusiveStartKey) {
-            this._exclusiveStartKey.forEach(startKey => {
-                if (!queryInput.ExclusiveStartKey) {
-                    queryInput.ExclusiveStartKey = {};
-                }
-
-                const attributeValue: AttributeValue = {};
-                (<any>attributeValue)[startKey.valueType] = startKey.value;
-                queryInput.ExclusiveStartKey[startKey.name] = attributeValue;
-            });
-        }
-
         const primaryKeys = this._recordQuery.getPrimaryKeys();
         if (!primaryKeys || primaryKeys.length === 0 || primaryKeys.length > 2) {
             throw Error(`The query attributes are missing`);
         }
 
-        const keyExpression = this._transformKeys(primaryKeys);
-        queryInput.KeyConditionExpression = keyExpression[0];
-        keyExpression[1].forEach((value, key) => {
+        const keyExpression = this._recordMapper.toKeyExpression(primaryKeys);
+        queryInput.KeyConditionExpression = keyExpression.expression;
+        keyExpression.attributeValues.forEach((value, key) => {
             queryInput.ExpressionAttributeValues![key] = value;
-        })
+        });
+
         const client = this._clientResolver.resolve();
         const response = await client.query(queryInput).promise();
         const records: TRecord[] = [];
         if (response.Items && response.Count && response.Count > 0) {
             const recordTypeId = this._recordQuery.getRecordTypeId();
             response.Items.forEach(attribute => {
-                records.push(this._recordMapper.mapAttributes<TRecord>(recordTypeId, attribute));
-            })
+                records.push(this._recordMapper.toRecord<TRecord>(recordTypeId, attribute));
+            });
         }
 
         return {
-            lastKey: null,
+            lastKey: this._recordMapper.toPrimaryKey(response.LastEvaluatedKey),
             total: response.Count || 0,
             records: records
         }
-    }
-
-    private _transformKeys(queryKeys: ReadonlyArray<DynamoDBPrimaryAttribute>): [string, ReadonlyMap<string, AttributeValue>] {
-        const dummySchema: ReadonlyMap<string, DynamoDBAttributeSchema> = new Map<string, DynamoDBAttributeSchema>();
-        const keyExpressionTransformer = new DynamoDBExpressionTransformer(dummySchema, "primary");
-        const expressions: ParserNode[] = [];
-        for (let i = 0; i < queryKeys.length; i++) {
-            const key = queryKeys[i];
-            let node: ParserNode;
-            const attributeNode = new ObjectAccessorNode(key.name);
-            const valueNode = keyExpressionTransformer.toValueNode(key.valueType, key.value);
-            const functionName = keyExpressionTransformer.tryGetFunctionName(key.operator);
-            if (functionName) {
-                node = new FunctionNode(functionName, attributeNode, valueNode)
-            }
-            else {
-                node = new CompareOperationNode(<COMPARE_OPERATOR_TYPE>key.operator, attributeNode, valueNode);
-            }
-
-            expressions.push(node);
-        }
-
-        let evaluateNode: ParserNode;
-        if (expressions.length === 2) {
-            evaluateNode = new BooleanOperationNode("And", expressions[0], expressions[1])
-        }
-        else if (expressions.length === 1) {
-            evaluateNode = expressions[0];
-        }
-        else {
-            throw Error(`One or two query keys are required, but received ${expressions.length}`);
-        }
-
-        const keyExpression = keyExpressionTransformer.transform(evaluateNode);
-        return [keyExpression, keyExpressionTransformer.expressionAttributeValues];
     }
 
     private _getExpressionTransformer(): DynamoDBExpressionTransformer {

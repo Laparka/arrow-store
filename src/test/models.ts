@@ -1,7 +1,7 @@
 import {
     COMPARE_OPERATOR_TYPE, Ctor,
     DynamoDBRecordBase,
-    DynamoDBPrimaryAttribute,
+    DynamoDBPrimaryKeyExpression,
     DynamoDBRecordIndexBase, FUNCTION_OPERATOR_TYPE, PRIMARY_ATTRIBUTE_TYPE
 } from "../records/record";
 import {DYNAMODB_ATTRIBUTE_TYPE} from "../mappers/schemaBuilders";
@@ -16,7 +16,7 @@ export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
         this._clockId = clockId;
     }
 
-    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryAttribute> {
+    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression> {
         return [new PartitionKey('ClockRecord'), new RangeKey(this._clockId)];
     }
 
@@ -72,7 +72,7 @@ export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
 }
 
 export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
-    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryAttribute> {
+    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression> {
         return [new PartitionKey('ClockRecord')];
     }
 
@@ -94,33 +94,34 @@ export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
 
 }
 
-export class PartitionKey implements DynamoDBPrimaryAttribute {
+export class PartitionKey implements DynamoDBPrimaryKeyExpression {
     private readonly _value: string;
     constructor(value: string) {
         this._value = value;
     }
-    get attributeType(): PRIMARY_ATTRIBUTE_TYPE {
-        return "Partition";
-    }
 
-    get name(): string {
+    getAttributeName(): string {
         return "Namespace";
     }
 
-    get operator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
-        return "Equals";
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
+        return "S";
     }
 
-    get value(): any {
+    getAttributeValue(): any {
         return this._value;
     }
 
-    get valueType(): DYNAMODB_ATTRIBUTE_TYPE {
-        return "S";
+    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
+        return "Equals";
+    }
+
+    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE {
+        return "Partition";
     }
 }
 
-export class RangeKey implements DynamoDBPrimaryAttribute {
+export class RangeKey implements DynamoDBPrimaryKeyExpression {
     private readonly _value: string;
     private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
     constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE = 'Equals') {
@@ -128,23 +129,23 @@ export class RangeKey implements DynamoDBPrimaryAttribute {
         this._comparisonOperator = operator;
     }
 
-    get attributeType(): PRIMARY_ATTRIBUTE_TYPE {
-        return "Range";
-    }
-
-    get name(): string {
+    getAttributeName(): string {
         return "Id";
     }
 
-    get operator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
-        return this._comparisonOperator;
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
+        return "S";
     }
 
-    get value(): any {
+    getAttributeValue(): any {
         return this._value;
     }
 
-    get valueType(): DYNAMODB_ATTRIBUTE_TYPE {
-        return "S";
+    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
+        return this._comparisonOperator;
+    }
+
+    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE {
+        return "Range";
     }
 }

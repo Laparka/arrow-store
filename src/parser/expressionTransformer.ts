@@ -479,27 +479,6 @@ export class DynamoDBExpressionTransformer {
         return segments;
     }
 
-    tryGetFunctionName(operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE): string | null {
-        switch (operator) {
-            case "BeginsWith": {
-                return "begins_with";
-            }
-            case "Contains": {
-                return "contains";
-            }
-
-            case "Exists": {
-                return "attribute_exists";
-            }
-
-            case "NotExists": {
-                return "attribute_not_exists";
-            }
-        }
-
-        return null;
-    }
-
     toValueNode(attributeType: DYNAMODB_ATTRIBUTE_TYPE, attributeValue: any): ParserNode {
         switch (attributeType) {
             case "BOOL": {

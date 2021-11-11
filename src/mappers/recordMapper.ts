@@ -5,6 +5,7 @@ import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
 export interface DynamoDBRecordMapper {
     mapAttributes<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
+    mapRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap;
 }
 
 export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
@@ -12,6 +13,24 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
 
     constructor(schemaProvider: DynamoDBSchemaProvider) {
         this._schemaProvider = schemaProvider;
+    }
+
+    mapRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap {
+        if (!recordTypeId) {
+            throw Error(`The record type ID is missing`);
+        }
+
+        if (!record || !record.getRecordId) {
+            throw Error(`The record object is missing`)
+        }
+
+        const recordId = record.getRecordId();
+        if (!recordId) {
+            throw Error(`The recordId is missing`);
+        }
+
+        const writingSchema = this._schemaProvider.getWritingSchema(recordTypeId);
+        throw new Error("Method not implemented.");
     }
 
     mapAttributes<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord {

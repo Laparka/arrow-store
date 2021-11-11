@@ -1,11 +1,10 @@
 import {DynamoService} from "../services/dynamoService";
-import { ClocksQuery} from "./models";
-import {DynamoDBRecordSchemaSourceBase} from "../mappers/schemaBuilders";
-import {ClockRecordSchemaSource} from "./testMappingProfile";
+import {ClockRecord, ClocksQuery} from "./models";
+import {TestMappingProfile} from "./testMappingProfile";
 import {DynamoDB, config, SharedIniFileCredentials} from "aws-sdk";
 import {DynamoDBClientResolver} from "../services/dynamoResolver";
-import {DefaultSchemaProvider} from "../mappers/defaultSchemaProvider";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
+import DynamoDBMappingBuilder from "../mappers/mappingBuilder";
 
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {
@@ -16,23 +15,34 @@ class AppDynamoDBClientResolver implements DynamoDBClientResolver {
         return client;
     }
 }
-test("Must Read Values From Parameters Map Context Object", async () => {
-    const clockQuery = new ClocksQuery();
-    const schemaSources = new Map<symbol, DynamoDBRecordSchemaSourceBase<any>>(
-        [
-            [clockQuery.getRecordTypeId(), new ClockRecordSchemaSource()]
-        ]
-    );
-
-    const schemaProvider =  new DefaultSchemaProvider(schemaSources);
+test("Must write clock record to DynamoDB", async () => {
+    const mappingBuilder = new DynamoDBMappingBuilder();
+    const mappingProfile = new TestMappingProfile();
+    mappingProfile.register(mappingBuilder);
+    const schemaProvider = mappingBuilder.buildSchemaProvider();
     const dynamoService = new DynamoService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    const requestCtx = {
-        clockType: 'Analog',
-        brand: "CTX_Fossil"
+    const clockRecord = new ClockRecord();
+    clockRecord.clockType = "Hybrid";
+    clockRecord.clockModel = "DW8F1";
+    clockRecord.isCertified = true;
+    clockRecord.brand = "Fossil";
+    clockRecord.totalSegments = 60;
+    clockRecord.clockDetails = {
+        serialNumber: "UK7-DW8",
+        madeIn: "CHN"
     };
+    const isSaved = await dynamoService.saveAsync(clockRecord);
+});
 
+test("Must query clock records from DynamoDB", async () => {
+    const mappingBuilder = new DynamoDBMappingBuilder();
+    const mappingProfile = new TestMappingProfile();
+    mappingProfile.register(mappingBuilder);
+    const schemaProvider = mappingBuilder.buildSchemaProvider();
+    const dynamoService = new DynamoService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const query = dynamoService
         .query(new ClocksQuery())
+        .where(x => x.clockType === "Hybrid" && x.isCertified)
         .take(1)
         .sortByAscending();
     const clockRecords = await query.listAsync()

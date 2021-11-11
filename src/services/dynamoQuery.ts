@@ -2,7 +2,7 @@ import {
     DynamoDBQueryResult,
     DynamoDBRecord,
     DynamoDBRecordIndexBase,
-    DynamoDBAttributeQuery, COMPARE_OPERATOR_TYPE
+    DynamoDBPrimaryAttribute, COMPARE_OPERATOR_TYPE
 } from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import PredicateExpressionParser from "../parser/predicateExpressionParser";
@@ -33,7 +33,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
     private readonly _filterExpressions: string[];
     private _expressionTransformer: DynamoDBExpressionTransformer | undefined;
     private _scanIndexFwd: boolean = false;
-    private _exclusiveStartKey: ReadonlyArray<DynamoDBAttributeQuery> | undefined;
+    private _exclusiveStartKey: ReadonlyArray<DynamoDBPrimaryAttribute> | undefined;
     private _limit: number | undefined;
 
     constructor(recordQuery: DynamoDBRecordIndexBase<TRecord>,
@@ -70,7 +70,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
             throw Error(`The recordId must return both - the partition and range keys`);
         }
 
-        if (primaryKeys.findIndex(x => !x.attributeName || !x.attributeValue || x.operator !== "Equals") >= 0) {
+        if (primaryKeys.findIndex(x => !x.name || !x.value || x.operator !== "Equals") >= 0) {
             throw Error(`Invalid partition or range key is provided for the exclusiveStartKey`);
         }
 
@@ -102,13 +102,13 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
             throw Error(`The recordQuery is missing`);
         }
 
-        const tableName: string | undefined = this._recordQuery.tableName();
+        const tableName: string | undefined = this._recordQuery.getTableName();
         if (!tableName) {
             throw Error(`The DynamoDB Table name was not found in the record's query`);
         }
 
         const queryInput: QueryInput = {
-            TableName: this._recordQuery.tableName(),
+            TableName: this._recordQuery.getTableName(),
             ExpressionAttributeValues: {}
         };
 
@@ -132,8 +132,8 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
                 }
 
                 const attributeValue: AttributeValue = {};
-                (<any>attributeValue)[startKey.attributeType] = startKey.attributeValue;
-                queryInput.ExclusiveStartKey[startKey.attributeName] = attributeValue;
+                (<any>attributeValue)[startKey.valueType] = startKey.value;
+                queryInput.ExclusiveStartKey[startKey.name] = attributeValue;
             });
         }
 
@@ -164,15 +164,15 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         }
     }
 
-    private _transformKeys(queryKeys: ReadonlyArray<DynamoDBAttributeQuery>): [string, ReadonlyMap<string, AttributeValue>] {
+    private _transformKeys(queryKeys: ReadonlyArray<DynamoDBPrimaryAttribute>): [string, ReadonlyMap<string, AttributeValue>] {
         const dummySchema: ReadonlyMap<string, DynamoDBAttributeSchema> = new Map<string, DynamoDBAttributeSchema>();
         const keyExpressionTransformer = new DynamoDBExpressionTransformer(dummySchema, "primary");
         const expressions: ParserNode[] = [];
         for (let i = 0; i < queryKeys.length; i++) {
             const key = queryKeys[i];
             let node: ParserNode;
-            const attributeNode = new ObjectAccessorNode(key.attributeName);
-            const valueNode = keyExpressionTransformer.toValueNode(key.attributeType, key.attributeValue);
+            const attributeNode = new ObjectAccessorNode(key.name);
+            const valueNode = keyExpressionTransformer.toValueNode(key.valueType, key.value);
             const functionName = keyExpressionTransformer.tryGetFunctionName(key.operator);
             if (functionName) {
                 node = new FunctionNode(functionName, attributeNode, valueNode)

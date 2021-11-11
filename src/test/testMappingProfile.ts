@@ -105,12 +105,16 @@ export class TestMappingProfile implements DynamoDBMappingProfile {
                     nested
                         .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
                         .forMember(x => x!.serialNumber, from => from.asString("SERIAL_NUMBER"))));
-        /*builder
+        builder
             .createWriterFor<ClockRecord>(RECORD_TYPES.ClockRecord)
-            .forMember(x => x.totalSegments, writeTo => writeTo.nestedIn('recordData').asNumber('totalSegments'))
-            .forMember(x => x.clockDetails, writeTo => writeTo.nestedIn('recordData')
-                .asObject("clockDetails", nested =>
-                    nested.forMember(x => x.madeIn, nestedWrite => nestedWrite.asString("madeIn"))
-                        .forMember(x => x.serialNumber, nestedWrite => nestedWrite.asNumber("serialNumber"))));*/
+            .forMember(x => x.totalSegments, readAs => readAs.asNumber("RECORD_DATA.TOTAL_SEGMENTS"))
+            .forMember(x => x.brand, readAs => readAs.asString("RECORD_DATA.BRAND"))
+            .forMember(x => x.clockModel, readAs => readAs.asString("Id"))
+            .forMember(x => x.clockType, readAs => readAs.asString("RECORD_DATA.CLOCK_TYPE"))
+            .forMember(x => x.isCertified, readAs => readAs.asBool("RECORD_DATA.IS_CERTIFIED"))
+            .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
+                nested
+                    .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
+                    .forMember(x => x!.serialNumber, from => from.asString("SERIAL_NUMBER"))));
     }
 }

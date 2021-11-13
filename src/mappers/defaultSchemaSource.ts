@@ -2,6 +2,7 @@ import {DynamoDBAttributeSchema, DynamoDBRecordSchemaSourceBase} from "./schemaB
 
 export default class DefaultSchemaSource extends DynamoDBRecordSchemaSourceBase<any> {
     private readonly _schema: ReadonlyMap<string, DynamoDBAttributeSchema>;
+
     constructor(schema: ReadonlyMap<string, DynamoDBAttributeSchema>) {
         super();
         this._schema = schema;

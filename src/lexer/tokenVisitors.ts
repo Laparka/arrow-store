@@ -15,7 +15,7 @@ export class ObjectTokenVisitor implements TokenVisitor {
 
         if (ObjectTokenVisitor._literalStartRegex.test(query[index])) {
             let endIndex = index + 1;
-            while(endIndex < query.length && ObjectTokenVisitor._literalRegex.test(query[endIndex])) {
+            while (endIndex < query.length && ObjectTokenVisitor._literalRegex.test(query[endIndex])) {
                 endIndex++;
             }
 
@@ -69,13 +69,13 @@ export class CommaTokenVisitor implements TokenVisitor {
     }
 }
 
-export class StringTokenVisitor implements TokenVisitor{
+export class StringTokenVisitor implements TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number {
         let endIndex = index;
         if (query[index] === `'` || query[index] === '`' || query[index] === '"') {
             const closeStringChar = query[index];
             let escape = false;
-            while(endIndex < query.length) {
+            while (endIndex < query.length) {
                 const nextChar = query[++endIndex];
                 if (nextChar === '\\') {
                     escape = true;
@@ -106,10 +106,11 @@ export class StringTokenVisitor implements TokenVisitor{
 
 export class NumberTokenVisitor implements TokenVisitor {
     private static readonly _NumberRegex = /[0-9e.]/;
+
     visit(query: string, index: number, tokens: QueryToken[]): number {
         let endIndex = index;
         if (/[0-9]/.test(query[endIndex])) {
-            for(;endIndex < query.length; endIndex++) {
+            for (; endIndex < query.length; endIndex++) {
                 if (!NumberTokenVisitor._NumberRegex.test(query[endIndex])) {
                     break;
                 }
@@ -134,8 +135,7 @@ export class GroupTokenVisitor implements TokenVisitor {
                 tokenType: 'GroupStart',
                 length: 1
             })
-        }
-        else if (query[index] === ')') {
+        } else if (query[index] === ')') {
             tokens.push({
                 index: index++,
                 tokenType: 'GroupEnd',
@@ -188,8 +188,7 @@ export class BooleanOperatorTokenVisitor implements TokenVisitor {
                 if (query[++endIndex] === '=') {
                     tokenType = 'GreaterThanOrEquals';
                     endIndex++;
-                }
-                else {
+                } else {
                     tokenType = 'GreaterThan';
                 }
 
@@ -200,8 +199,7 @@ export class BooleanOperatorTokenVisitor implements TokenVisitor {
                 if (query[++endIndex] === '=') {
                     tokenType = 'LessThanOrEquals';
                     endIndex++;
-                }
-                else {
+                } else {
                     tokenType = 'LessThan';
                 }
 
@@ -211,13 +209,11 @@ export class BooleanOperatorTokenVisitor implements TokenVisitor {
             case '=': {
                 if (query[++endIndex] !== '=') {
                     --endIndex;
-                }
-                else {
+                } else {
                     tokenType = "Equals";
                     if (query[++endIndex] === '=') {
                         ++endIndex;
-                    }
-                    else {
+                    } else {
                         --endIndex;
                     }
                 }
@@ -233,8 +229,7 @@ export class BooleanOperatorTokenVisitor implements TokenVisitor {
 
                     ++endIndex;
                     tokenType = "NotEquals";
-                }
-                else {
+                } else {
                     endIndex = index;
                 }
 

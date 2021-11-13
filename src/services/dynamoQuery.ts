@@ -1,8 +1,4 @@
-import {
-    DynamoDBQueryResult,
-    DynamoDBRecord, DynamoDBRecordIndex,
-    DynamoDBRecordIndexBase
-} from "../records/record";
+import {DynamoDBQueryResult, DynamoDBRecord, DynamoDBRecordIndex, DynamoDBRecordIndexBase} from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import PredicateExpressionParser from "../parser/predicateExpressionParser";
 import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
@@ -40,7 +36,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         this._filterExpressions = [];
     }
 
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext) : DynamoQuery<TRecord> {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): DynamoQuery<TRecord> {
         if (!predicate) {
             throw Error(`where-clause predicate is missing`);
         }
@@ -53,7 +49,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    skipTo(recordId: DynamoDBRecordIndex) : DynamoQuery<TRecord> {
+    skipTo(recordId: DynamoDBRecordIndex): DynamoQuery<TRecord> {
         if (!recordId) {
             throw Error(`The recordId is missing`)
         }
@@ -62,7 +58,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    take(takeRecords: number) : DynamoQuery<TRecord> {
+    take(takeRecords: number): DynamoQuery<TRecord> {
         if (takeRecords <= 0) {
             throw Error(`The takeRecords argument must be greater than zero`);
         }
@@ -71,12 +67,12 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    sortByAscending() : DynamoQuery<TRecord>{
+    sortByAscending(): DynamoQuery<TRecord> {
         this._scanIndexFwd = true;
         return this;
     }
 
-    sortByDescending() : DynamoQuery<TRecord> {
+    sortByDescending(): DynamoQuery<TRecord> {
         this._scanIndexFwd = false;
         return this;
     }
@@ -103,8 +99,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         this._filterExpressions.forEach(filterExp => {
             if (queryInput.FilterExpression) {
                 queryInput.FilterExpression = `(${queryInput.FilterExpression}) AND (${filterExp})`;
-            }
-            else {
+            } else {
                 queryInput.FilterExpression = filterExp;
             }
         });
@@ -130,7 +125,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         if (response.Items && response.Count && response.Count > 0) {
             const recordTypeId = this._recordQuery.getRecordTypeId();
             response.Items.forEach(attribute => {
-                records.push(this._recordMapper.toRecord<TRecord>(recordTypeId, attribute));
+                records.push(this._recordMapper.toRecord<TRecord>(this._recordQuery.getRecordType(), recordTypeId, attribute));
             });
         }
 

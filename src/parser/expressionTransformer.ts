@@ -1,17 +1,20 @@
 import {
-    ArgumentsNode, BooleanOperationNode, BoolValueNode, CompareOperationNode,
+    ArgumentsNode,
+    BooleanOperationNode,
+    BoolValueNode,
+    CompareOperationNode,
     FunctionNode,
     GroupNode,
     InverseNode,
-    LambdaExpressionNode, NullValueNode, NumberValueNode,
+    LambdaExpressionNode,
+    NullValueNode,
+    NumberValueNode,
     ObjectAccessorNode,
-    ParserNode, StringValueNode
+    ParserNode,
+    StringValueNode
 } from "./nodes";
-import {
-    DYNAMODB_ATTRIBUTE_TYPE,
-    DynamoDBAttributeSchema
-} from "../mappers/schemaBuilders";
-import {COMPARE_OPERATOR_TYPE, FUNCTION_OPERATOR_TYPE} from "../records/record";
+import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
+import {COMPARE_OPERATOR_TYPE} from "../records/record";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
 const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
@@ -34,6 +37,7 @@ export class DynamoDBExpressionTransformer {
     private readonly _recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>;
     private readonly _expressionAttributeValues: Map<string, AttributeValue>;
     private readonly _expressionAttributeParamPrefix: string;
+
     constructor(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expressionAttributeParamPrefix?: string) {
         this._recordSchema = recordSchema;
         this._expressionAttributeValues = new Map<string, AttributeValue>();
@@ -112,15 +116,14 @@ export class DynamoDBExpressionTransformer {
         this._visit(node.parameter, context);
         if (context.stack.length === 2) {
             context.contextParameterName = context.stack.pop();
-        }
-        else if (context.stack.length !== 1) {
+        } else if (context.stack.length !== 1) {
             throw Error(`The lambda expression's root parameters are invalid`)
         }
 
         context.rootParameterName = context.stack.pop()!;
         this._visit(node.body, context);
-        if (node.body.nodeType === 'ObjectAccessor'){
-            context.stack.push(this._tryAsBool(node.body, context.stack.pop()! , context));
+        if (node.body.nodeType === 'ObjectAccessor') {
+            context.stack.push(this._tryAsBool(node.body, context.stack.pop()!, context));
         }
     }
 
@@ -130,8 +133,8 @@ export class DynamoDBExpressionTransformer {
             return;
         }
 
-        if (node.body.nodeType === 'ObjectAccessor'){
-            context.stack.push(this._tryAsBool(node.body, context.stack.pop()! , context));
+        if (node.body.nodeType === 'ObjectAccessor') {
+            context.stack.push(this._tryAsBool(node.body, context.stack.pop()!, context));
         }
 
         context.stack.push(`(${context.stack.pop()})`)
@@ -149,8 +152,7 @@ export class DynamoDBExpressionTransformer {
             case Object.prototype.hasOwnProperty.name: {
                 if (instance === Object.name) {
                     functionName = "attribute_exists";
-                }
-                else {
+                } else {
                     throw Error(`hasOwnProperty must be called on Object type only`);
                 }
 
@@ -192,12 +194,12 @@ export class DynamoDBExpressionTransformer {
     private _visitInverse(node: InverseNode, context: TraversalContext) {
         let inverseTimes = 0;
         let childNode: ParserNode = node;
-        while(childNode.nodeType === 'Inverse') {
+        while (childNode.nodeType === 'Inverse') {
             childNode = (<InverseNode>childNode).body;
             inverseTimes++;
         }
 
-        switch (childNode.nodeType){
+        switch (childNode.nodeType) {
             case 'ObjectAccessor': {
                 const objectAccessor = <ObjectAccessorNode>childNode;
                 let schema = this._tryFindSchemaByPath(objectAccessor.value, context.rootParameterName);
@@ -208,8 +210,7 @@ export class DynamoDBExpressionTransformer {
                 if (inverseTimes > 1 || schema.lastChildAttributeType !== "BOOL") {
                     const attributeExists = inverseTimes % 2 === 0 ? "attribute_exists" : "attribute_not_exists";
                     context.stack.push(`${attributeExists}(${DynamoDBExpressionTransformer._joinAttributesPath(schema)})`);
-                }
-                else {
+                } else {
                     const parameter = this._setFilterAttributeValue(inverseTimes % 2 === 0, "BOOL");
                     context.stack.push(`${DynamoDBExpressionTransformer._joinAttributesPath(schema)} == ${parameter}`);
                 }
@@ -346,7 +347,7 @@ export class DynamoDBExpressionTransformer {
     private _tryGetContextValue(memberAccessPath: string, context: TraversalContext): string | null {
         let ctxObject = context.contextParameters;
         const segments = this._cleanup(memberAccessPath);
-        for(let i = 0; i < segments.length; i++) {
+        for (let i = 0; i < segments.length; i++) {
             const propertyName = segments[i];
             if (i === 0) {
                 if (propertyName === context.contextParameterName) {
@@ -357,7 +358,7 @@ export class DynamoDBExpressionTransformer {
             }
 
             ctxObject = ctxObject[propertyName];
-            if (!ctxObject){
+            if (!ctxObject) {
                 if (segments.length - 1 === i) {
                     if (ctxObject === null) {
                         return "null";
@@ -370,13 +371,14 @@ export class DynamoDBExpressionTransformer {
 
         return ctxObject;
     }
+
     private _tryFindSchemaByPath(memberAccessPath: string, rootParameterName: string | undefined, byFunctionType?: string): DynamoDBAttributeSchema | null {
         if (!rootParameterName) {
             return null;
         }
 
         let pathSegments = this._cleanup(memberAccessPath);
-        if (pathSegments.length <= 1  || pathSegments[0] !== rootParameterName) {
+        if (pathSegments.length <= 1 || pathSegments[0] !== rootParameterName) {
             return null;
         }
 
@@ -385,16 +387,14 @@ export class DynamoDBExpressionTransformer {
         let attributeSchema: DynamoDBAttributeSchema | undefined;
         let isSizeFunction = false;
         let len = pathSegments.length;
-        for(; len > 0; len--) {
+        for (; len > 0; len--) {
             accessorPath = pathSegments.slice(0, len).join('.');
             attributeSchema = this._recordSchema.get(accessorPath);
             if (attributeSchema) {
                 break;
-            }
-            else if (byFunctionType && len === pathSegments.length && pathSegments[pathSegments.length - 1] === byFunctionType) {
+            } else if (byFunctionType && len === pathSegments.length && pathSegments[pathSegments.length - 1] === byFunctionType) {
                 isSizeFunction = true;
-            }
-            else {
+            } else {
                 return null;
             }
         }
@@ -459,7 +459,7 @@ export class DynamoDBExpressionTransformer {
         do {
             attributePathSegments.push(attributeSchema.attributeName);
             attributeSchema = attributeSchema.nested;
-        }while(!!attributeSchema);
+        } while (!!attributeSchema);
 
         return attributePathSegments.join('.');
     }

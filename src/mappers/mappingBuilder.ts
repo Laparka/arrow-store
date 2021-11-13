@@ -1,11 +1,11 @@
 import {
-    DynamoDBSchemaProvider,
     DynamoDBRecordSchemaBuilder,
     DynamoDBRecordSchemaSourceBase,
+    DynamoDBSchemaProvider,
     MappingBuilder
 } from "./schemaBuilders";
 import {DynamoDBRecord} from "../records/record";
-import AttributeSchemaBuilder from "./attributeSchemaBuilder";
+import {AttributeSchemaBuilder} from "./attributeSchemaBuilder";
 import DefaultSchemaSource from "./defaultSchemaSource";
 import {DefaultSchemaProvider} from "./defaultSchemaProvider";
 
@@ -15,6 +15,7 @@ export default class DynamoDBMappingBuilder implements MappingBuilder {
 
     private readonly _readingSchemaSources: Map<symbol, DynamoDBRecordSchemaSourceBase<any>>;
     private readonly _writingSchemaSources: Map<symbol, DynamoDBRecordSchemaSourceBase<any>>;
+
     constructor() {
         this._fromAttributeReaders = new Map<symbol, DynamoDBRecordSchemaBuilder<any>>();
         this._toAttributeWriters = new Map<symbol, DynamoDBRecordSchemaBuilder<any>>();

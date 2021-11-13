@@ -2,8 +2,8 @@ import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
 export type BOOLEAN_OPERATOR = 'And' | 'Or';
 export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue" | "UndefinedValue"
-export type EXPRESSION_NODE_TYPE =  PROPERTY_TYPE | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
-    |"ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments";
+export type EXPRESSION_NODE_TYPE = PROPERTY_TYPE | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
+    | "ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments";
 
 export abstract class ParserNode {
     abstract get nodeType(): EXPRESSION_NODE_TYPE;
@@ -11,6 +11,7 @@ export abstract class ParserNode {
 
 export class ObjectAccessorNode extends ParserNode {
     private readonly _value: string;
+
     constructor(value: string) {
         super();
         this._value = value;
@@ -25,10 +26,11 @@ export class ObjectAccessorNode extends ParserNode {
     }
 }
 
-export class FunctionNode extends ParserNode{
+export class FunctionNode extends ParserNode {
     private readonly _functionName: string;
     private readonly _instance: ObjectAccessorNode;
     private readonly _args: ParserNode;
+
     constructor(functionName: string, instance: ObjectAccessorNode, args: ParserNode) {
         super();
         this._functionName = functionName;
@@ -45,11 +47,11 @@ export class FunctionNode extends ParserNode{
     }
 
     get args(): ParserNode[] {
-        if (this._args.nodeType === "Arguments"){
+        if (this._args.nodeType === "Arguments") {
             return (<ArgumentsNode>this._args).args;
         }
 
-       return [this._args];
+        return [this._args];
     }
 
     get nodeType(): EXPRESSION_NODE_TYPE {
@@ -61,6 +63,7 @@ export class BooleanOperationNode extends ParserNode {
     private readonly _booleanOperator: BOOLEAN_OPERATOR;
     private readonly _leftOperand: ParserNode;
     private readonly _rightOperand: ParserNode;
+
     constructor(operator: BOOLEAN_OPERATOR, left: ParserNode, right: ParserNode) {
         super();
         this._booleanOperator = operator;
@@ -84,6 +87,7 @@ export class BooleanOperationNode extends ParserNode {
         return "BooleanOperation";
     }
 }
+
 export class CompareOperationNode extends ParserNode {
     private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE;
     private readonly _leftOperand: ParserNode;
@@ -92,7 +96,7 @@ export class CompareOperationNode extends ParserNode {
     constructor(comparisonOperator: COMPARE_OPERATOR_TYPE, left: ParserNode, right: ParserNode) {
         super();
         this._leftOperand = left;
-        this._rightOperand  = right;
+        this._rightOperand = right;
         this._comparisonOperator = comparisonOperator;
     }
 
@@ -138,6 +142,7 @@ export class LambdaExpressionNode extends ParserNode {
 
 export class StringValueNode extends ObjectAccessorNode {
     private readonly _isFormatString: boolean;
+
     constructor(value: string, isFormatString: boolean) {
         super(value);
         this._isFormatString = isFormatString;
@@ -150,6 +155,7 @@ export class StringValueNode extends ObjectAccessorNode {
 
 export class NumberValueNode extends ParserNode {
     private readonly _value: number;
+
     constructor(value: number) {
         super();
         this._value = value;
@@ -178,6 +184,7 @@ export class UndefinedValueNode extends ParserNode {
 
 export class BoolValueNode extends ParserNode {
     private readonly _value: boolean;
+
     constructor(value: boolean) {
         super();
         this._value = value;
@@ -194,6 +201,7 @@ export class BoolValueNode extends ParserNode {
 
 export class ArgumentsNode extends ParserNode {
     private readonly _args: ParserNode[];
+
     constructor(args: ParserNode[]) {
         super();
         this._args = args;
@@ -220,8 +228,10 @@ export class InverseNode extends ParserNode {
         return "Inverse";
     }
 }
+
 export class GroupNode extends ParserNode {
     private readonly _bodyNode: ParserNode;
+
     constructor(bodyNode: ParserNode) {
         super();
         this._bodyNode = bodyNode;

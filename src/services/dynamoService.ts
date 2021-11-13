@@ -16,7 +16,7 @@ export class DynamoService {
         this._recordMapper = recordMapper;
     }
 
-    query<TRecord extends DynamoDBRecord>(query: DynamoDBRecordIndexBase<TRecord>): DynamoQuery<TRecord>{
+    query<TRecord extends DynamoDBRecord>(query: DynamoDBRecordIndexBase<TRecord>): DynamoQuery<TRecord> {
         return new DynamoQuery<TRecord>(query, this._schemaProvider, this._recordMapper, this._clientResolver);
     }
 
@@ -45,7 +45,7 @@ export class DynamoService {
             TableName: recordId.getTableName(),
             Item: attributesToSave,
             ReturnValues: "NONE",
-            ReturnConsumedCapacity: "NONE",
+            ReturnConsumedCapacity: "TOTAL",
             ReturnItemCollectionMetrics: "NONE"
         };
 

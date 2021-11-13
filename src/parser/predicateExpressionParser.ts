@@ -1,19 +1,19 @@
 import {QueryToken, TOKEN_TYPE} from "../lexer/queryTokens";
 import {
+    ArgumentsNode,
     BooleanOperationNode,
+    BoolValueNode,
     CompareOperationNode,
-    StringValueNode,
+    FunctionNode,
     GroupNode,
+    InverseNode,
+    LambdaExpressionNode,
+    NullValueNode,
+    NumberValueNode,
     ObjectAccessorNode,
     ParserNode,
-    LambdaExpressionNode,
-    NumberValueNode,
-    FunctionNode,
-    InverseNode,
-    ArgumentsNode,
-    NullValueNode,
-    UndefinedValueNode,
-    BoolValueNode
+    StringValueNode,
+    UndefinedValueNode
 } from "./nodes";
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
@@ -28,7 +28,7 @@ const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', '
 
 export default class PredicateExpressionParser {
     parse(query: string, tokens: ReadonlyArray<QueryToken>): ParserNode {
-        return this._lambda({ query: query, index: 0, lastIndex: tokens.length - 1, tokens: tokens});
+        return this._lambda({query: query, index: 0, lastIndex: tokens.length - 1, tokens: tokens});
     }
 
     private _lambda(iterator: NodeIterator): ParserNode {
@@ -91,6 +91,7 @@ export default class PredicateExpressionParser {
 
         return left;
     }
+
     private _function(iterator: NodeIterator): ParserNode {
         const left = this._value(iterator);
         const token = this._getCurrentToken(iterator);
@@ -114,12 +115,12 @@ export default class PredicateExpressionParser {
 
     private _value(iterator: NodeIterator): ParserNode {
         const left = this._groupStart(iterator);
-        if (!!left){
+        if (!!left) {
             return left;
         }
 
         const token = this._getCurrentToken(iterator);
-        switch (token.tokenType){
+        switch (token.tokenType) {
             case "Object": {
                 iterator.index++;
                 return new ObjectAccessorNode(this._stringify(iterator.query, token));
@@ -136,7 +137,7 @@ export default class PredicateExpressionParser {
             }
 
             case "FormatString":
-            case "String":{
+            case "String": {
                 iterator.index++;
                 return new StringValueNode(this._stringify(iterator.query, token), token.tokenType === "FormatString");
             }
@@ -188,7 +189,7 @@ export default class PredicateExpressionParser {
             return {tokenType: "Terminator", index: iterator.index, length: 0};
         }
 
-        if (iterator.index === iterator.tokens.length){
+        if (iterator.index === iterator.tokens.length) {
             throw Error(`Never reachable`);
         }
 
@@ -200,7 +201,7 @@ export default class PredicateExpressionParser {
             throw Error(`The query or token parameters are missing`);
         }
 
-        if (token.index  >= query.length || token.index + token.length > query.length) {
+        if (token.index >= query.length || token.index + token.length > query.length) {
             throw Error(`The token length is greater than the query itself. Query:${query}, Token: ${token.index}-${token.length}`);
         }
 

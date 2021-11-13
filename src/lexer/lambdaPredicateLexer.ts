@@ -36,7 +36,7 @@ export default class LambdaPredicateLexer {
         }
 
         const tokens: QueryToken[] = [];
-        for(let i = 0; i < query.length;) {
+        for (let i = 0; i < query.length;) {
             const next = LambdaPredicateLexer._visit(query, i, tokens);
             if (next <= i) {
                 throw Error(`Infinite loop detected`);
@@ -53,7 +53,7 @@ export default class LambdaPredicateLexer {
             return query.length;
         }
 
-        for(let i = 0; i < this._TokenVisitors.length; i++) {
+        for (let i = 0; i < this._TokenVisitors.length; i++) {
             const processedUpTo = this._TokenVisitors[i].visit(query, currentIndex, tokens);
             if (processedUpTo === currentIndex) {
                 continue;

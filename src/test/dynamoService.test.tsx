@@ -1,20 +1,21 @@
 import {DynamoService} from "../services/dynamoService";
 import {ClockRecord, ClocksQuery} from "./models";
 import {TestMappingProfile} from "./testMappingProfile";
-import {DynamoDB, config, SharedIniFileCredentials} from "aws-sdk";
+import {config, DynamoDB, SharedIniFileCredentials} from "aws-sdk";
 import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
 import DynamoDBMappingBuilder from "../mappers/mappingBuilder";
 
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {
-        config.update({ region:'us-west-2' });
-        const credentials = new SharedIniFileCredentials({ profile: 'kostyl-integration' });
+        config.update({region: 'us-west-2'});
+        const credentials = new SharedIniFileCredentials({profile: 'kostyl-integration'});
         config.credentials = credentials;
         const client = new DynamoDB();
         return client;
     }
 }
+
 test("Must write clock record to DynamoDB", async () => {
     const mappingBuilder = new DynamoDBMappingBuilder();
     const mappingProfile = new TestMappingProfile();

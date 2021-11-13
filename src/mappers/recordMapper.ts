@@ -1,12 +1,15 @@
 import {
-    COMPARE_OPERATOR_TYPE,
+    COMPARE_OPERATOR_TYPE, Ctor,
     DynamoDBPrimaryKeyExpression,
-    DynamoDBRecord, DynamoDBRecordIndex,
-    DynamoDBRecordIndexBase, FUNCTION_OPERATOR_TYPE, PRIMARY_ATTRIBUTE_TYPE, PrimaryKeysMap, PrimaryKeyValue
+    DynamoDBRecord,
+    FUNCTION_OPERATOR_TYPE,
+    PRIMARY_ATTRIBUTE_TYPE,
+    PrimaryKeysMap,
+    PrimaryKeyValue
 } from "../records/record";
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema, DynamoDBSchemaProvider} from "./schemaBuilders";
 import {DynamoDB} from "aws-sdk";
-import {AttributeValue} from "aws-sdk/clients/dynamodb";
+import {AttributeMap, AttributeValue} from "aws-sdk/clients/dynamodb";
 import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
 import {
     BooleanOperationNode,
@@ -23,9 +26,13 @@ export type KeyExpression = {
 
 export interface DynamoDBRecordMapper {
     toKeyExpression(primaryKeys: ReadonlyArray<DynamoDBPrimaryKeyExpression>): KeyExpression;
-    toRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
+
+    toRecord<TRecord extends DynamoDBRecord>(recordCtor: Ctor<TRecord>, recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
+
     toAttributeMap<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap;
+
     toKeyAttribute(primaryKeys: ReadonlyArray<DynamoDBPrimaryKeyExpression>): DynamoDB.Key;
+
     toPrimaryKey(primaryKeyAttribute: DynamoDB.Key | undefined): PrimaryKeysMap | null;
 }
 
@@ -166,7 +173,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         const keys: DynamoDB.Key = {};
         let partitionExists = false;
         let rangeExists = false;
-        for(let i = 0; i < primaryKeys.length; i++) {
+        for (let i = 0; i < primaryKeys.length; i++) {
             const primaryKey = primaryKeys[i];
             if (primaryKey.getCompareOperator() !== "Equals") {
                 throw Error(`The primary key operator must be always Equals when saving or reading by the RecordId`);
@@ -204,8 +211,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             const functionName = this.tryGetFunctionName(key.getCompareOperator());
             if (functionName) {
                 node = new FunctionNode(functionName, attributeNode, valueNode)
-            }
-            else {
+            } else {
                 node = new CompareOperationNode(<COMPARE_OPERATOR_TYPE>key.getCompareOperator(), attributeNode, valueNode);
             }
 
@@ -215,11 +221,9 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         let evaluateNode: ParserNode;
         if (expressions.length === 2) {
             evaluateNode = new BooleanOperationNode("And", expressions[0], expressions[1])
-        }
-        else if (expressions.length === 1) {
+        } else if (expressions.length === 1) {
             evaluateNode = expressions[0];
-        }
-        else {
+        } else {
             throw Error(`One or two query keys are required, but received ${expressions.length}`);
         }
 
@@ -245,10 +249,28 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         const writingSchema = this._schemaProvider.getWritingSchema(recordTypeId);
-        throw new Error("Method not implemented.");
+        const result: AttributeMap = {};
+        const propertiesIterator = writingSchema.keys();
+        let entry = propertiesIterator.next();
+        while(!entry.done) {
+            const propertyName = entry.value;
+            const attributePath = writingSchema.get(propertyName)!;
+            this._setAttribute(propertyName, attributePath, record, result);
+            entry = propertiesIterator.next();
+        }
+
+        const primaryKeys = recordId.getPrimaryKeys();
+        for(let i = 0; i < primaryKeys.length; i++) {
+            const primaryAttributeName = primaryKeys[i].getAttributeName();
+            const primaryAttributeType = primaryKeys[i].getAttributeType();
+            const primaryAttributeValue = primaryKeys[i].getAttributeValue();
+            result[primaryAttributeName] = this.castValue(primaryAttributeValue, primaryAttributeType);
+        }
+
+        return result;
     }
 
-    toRecord<TRecord extends DynamoDBRecord>(recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord {
+    toRecord<TRecord extends DynamoDBRecord>(recordCtor: Ctor<TRecord>, recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord {
         if (!recordTypeId) {
             throw Error(`The record type ID is missing`);
         }
@@ -262,11 +284,11 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             throw Error(`Failed to find a reading schema for the ${Symbol.keyFor(recordTypeId)}`);
         }
 
-        const result: any = {};
+        const result = new recordCtor();
         const propertyNameIterator = readingSchema.keys();
         let propertyEntry = propertyNameIterator.next();
         let anySet = false;
-        while(!propertyEntry.done) {
+        while (!propertyEntry.done) {
             const propertyAtt = readingSchema.get(propertyEntry.value);
             if (!propertyAtt) {
                 throw Error(`The member schema is not defined at ${propertyEntry.value}`);
@@ -284,6 +306,58 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         return <TRecord>result;
+    }
+
+    private _setAttribute(propertyName: string, schema: DynamoDBAttributeSchema, source: any, attributeMap: DynamoDB.AttributeMap) {
+        if (schema.lastChildAttributeType === "M") {
+            return;
+        }
+
+        if (!propertyName) {
+            throw Error(`The property name is missing`);
+        }
+
+        const accessors = propertyName.split('.');
+        if (accessors.length > 1) {
+            for(let i = 0; i < accessors.length - 1; i++) {
+                if (source === null) {
+                    throw Error(`The object ${propertyName} has null-value`);
+                }
+
+                if (!source.hasOwnProperty(accessors[i])) {
+                    throw Error(`The object does not have the ${accessors[i]} value`);
+                }
+
+                source = source[accessors[i]];
+            }
+        }
+
+        propertyName = accessors[accessors.length - 1];
+        if (source === null) {
+            throw Error(`The object has a null-value under ${propertyName}`);
+        }
+
+        if (!source.hasOwnProperty(propertyName)) {
+            throw Error(`The object does not have the ${propertyName} value`);
+        }
+
+        const sourceValue = source[propertyName];
+        if (sourceValue === undefined) {
+            throw Error(`The object has no ${propertyName} member defined`);
+        }
+
+        let attributeNameSegments = this._getSchemaFullPath(schema);
+        let lastAttribute: AttributeValue = attributeMap;
+        for(let i = 0; i < attributeNameSegments.length - 1 && attributeNameSegments.length > 1; i++) {
+            if (!lastAttribute[attributeNameSegments[i]]) {
+                lastAttribute[attributeNameSegments[i]] = {M: {}};
+            }
+
+            lastAttribute = lastAttribute[attributeNameSegments[i]].M;
+        }
+
+        const attributeValue = this.castValue(sourceValue, schema.lastChildAttributeType);
+        lastAttribute[attributeNameSegments[attributeNameSegments.length - 1]] = attributeValue;
     }
 
     private _setProperty(source: DynamoDB.AttributeMap, propertyName: string, propertySchema: DynamoDBAttributeSchema, result: any): boolean {
@@ -347,7 +421,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
 
         if (segments.length > 1) {
             let temp = result;
-            for(let i = 0; i < segments.length - 1; i++) {
+            for (let i = 0; i < segments.length - 1; i++) {
                 if (!temp.hasOwnProperty(segments[i])) {
                     temp[segments[i]] = {};
                 }
@@ -364,19 +438,18 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
     private _findAttribute(memberSchema: DynamoDBAttributeSchema, source: DynamoDB.AttributeMap): AttributeValue {
         let totalIterated = 0;
         const pathSegments: string[] = [];
-        while(++totalIterated <= 10) {
+        while (++totalIterated <= 10) {
             pathSegments.push(memberSchema.attributeName);
             if (memberSchema.nested) {
                 memberSchema = memberSchema.nested;
-            }
-            else {
+            } else {
                 break;
             }
         }
 
         const attributePath = pathSegments.join('.').split('.');
         let attribute: AttributeValue | undefined;
-        for(let i = 0; i < attributePath.length; i++) {
+        for (let i = 0; i < attributePath.length; i++) {
             if (i === 0) {
                 attribute = source[attributePath[i]];
                 continue;
@@ -425,5 +498,16 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
 
         const attributeType = this.toAttributeType(valueAccessors[0]);
         return new PrimaryKeyValueImpl(attributeName, attributeType, this.castValue(attribute[attributeType], attributeType));
+    }
+
+    private _getSchemaFullPath(schema: DynamoDBAttributeSchema): string[] {
+        const result: string[] = [];
+        while(schema.nested) {
+            result.push(...schema.attributeName.split('.'));
+            schema = schema.nested;
+        }
+
+        result.push(...schema.attributeName.split('.'));
+        return result;
     }
 }

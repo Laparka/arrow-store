@@ -1,7 +1,8 @@
 import {ClockRecord, RECORD_TYPES} from "./models";
 import {
     DynamoDBAttributeSchema,
-    DynamoDBMappingProfile, DynamoDBRecordSchemaSourceBase,
+    DynamoDBMappingProfile,
+    DynamoDBRecordSchemaSourceBase,
     MappingBuilder
 } from "../mappers/schemaBuilders";
 
@@ -9,6 +10,7 @@ export class ClockRecordSchemaSource extends DynamoDBRecordSchemaSourceBase<Cloc
     getWritingSchema(): ReadonlyMap<string, DynamoDBAttributeSchema> {
         return this.getSchema();
     }
+
     getSchema(): Map<string, DynamoDBAttributeSchema> {
         return new Map<string, DynamoDBAttributeSchema>([
             ["clockType", {
@@ -105,14 +107,13 @@ export class TestMappingProfile implements DynamoDBMappingProfile {
             .forMember(x => x.clockType, readAs => readAs.asString("RECORD_DATA.CLOCK_TYPE"))
             .forMember(x => x.isCertified, readAs => readAs.asBool("RECORD_DATA.IS_CERTIFIED"))
             .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
-                    nested
-                        .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
-                        .forMember(x => x!.serialNumber, from => from.asString("SERIAL_NUMBER"))));
+                nested
+                    .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
+                    .forMember(x => x!.serialNumber, from => from.asString("SERIAL_NUMBER"))));
         builder
             .createWriterFor<ClockRecord>(RECORD_TYPES.ClockRecord)
             .forMember(x => x.totalSegments, readAs => readAs.asNumber("RECORD_DATA.TOTAL_SEGMENTS"))
             .forMember(x => x.brand, readAs => readAs.asString("RECORD_DATA.BRAND"))
-            .forMember(x => x.clockModel, readAs => readAs.asString("Id"))
             .forMember(x => x.clockType, readAs => readAs.asString("RECORD_DATA.CLOCK_TYPE"))
             .forMember(x => x.isCertified, readAs => readAs.asBool("RECORD_DATA.IS_CERTIFIED"))
             .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>

@@ -1,4 +1,4 @@
-import {DynamoDBAttributeSchema, DynamoDBSchemaProvider, DynamoDBRecordSchemaSourceBase} from "./schemaBuilders";
+import {DynamoDBAttributeSchema, DynamoDBRecordSchemaSourceBase, DynamoDBSchemaProvider} from "./schemaBuilders";
 
 export class DefaultSchemaProvider implements DynamoDBSchemaProvider {
     private readonly _readingSchemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>;

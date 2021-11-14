@@ -94,7 +94,7 @@ export class StringTokenVisitor implements TokenVisitor {
             }
 
             tokens.push({
-                tokenType: closeStringChar === '`' ? 'FormatString' : 'String',
+                tokenType: "String",
                 index: index,
                 length: endIndex - index
             });

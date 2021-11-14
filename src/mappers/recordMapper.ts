@@ -18,6 +18,8 @@ import {
     ObjectAccessorNode,
     ParserNode
 } from "../parser/nodes";
+import {isBoolean} from "util";
+import {isBooleanObject, isNumberObject} from "util/types";
 
 export type KeyExpression = {
     expression: string,
@@ -115,7 +117,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             }
 
             case "BOOL": {
-                return new Boolean(attributeValue);
+                return attributeValue === true;
             }
 
             case "NULL": {
@@ -264,7 +266,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             const primaryAttributeName = primaryKeys[i].getAttributeName();
             const primaryAttributeType = primaryKeys[i].getAttributeType();
             const primaryAttributeValue = primaryKeys[i].getAttributeValue();
-            result[primaryAttributeName] = this.castValue(primaryAttributeValue, primaryAttributeType);
+            result[primaryAttributeName] = this._toAttributeValue(primaryAttributeType, primaryAttributeValue);
         }
 
         return result;
@@ -356,8 +358,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             lastAttribute = lastAttribute[attributeNameSegments[i]].M;
         }
 
-        const attributeValue = this.castValue(sourceValue, schema.lastChildAttributeType);
-        lastAttribute[attributeNameSegments[attributeNameSegments.length - 1]] = attributeValue;
+        lastAttribute[attributeNameSegments[attributeNameSegments.length - 1]] = this._toAttributeValue(schema.lastChildAttributeType, sourceValue);
     }
 
     private _setProperty(source: DynamoDB.AttributeMap, propertyName: string, propertySchema: DynamoDBAttributeSchema, result: any): boolean {
@@ -422,7 +423,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         if (segments.length > 1) {
             let temp = result;
             for (let i = 0; i < segments.length - 1; i++) {
-                if (!temp.hasOwnProperty(segments[i])) {
+                if (!temp.hasOwnProperty(segments[i]) || temp[segments[i]] === null) {
                     temp[segments[i]] = {};
                 }
 
@@ -509,5 +510,39 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
 
         result.push(...schema.attributeName.split('.'));
         return result;
+    }
+
+    private _toAttributeValue(attributeType: DYNAMODB_ATTRIBUTE_TYPE, value: any): AttributeValue {
+        const attributeValue: AttributeValue = {};
+        if (value === null) {
+            attributeValue.NULL = true;
+        }
+        else if (value === undefined) {
+            throw Error(`The value is undefined`);
+        }
+        else {
+            switch (attributeType) {
+                case "S": {
+                    attributeValue.S = value
+                    break;
+                }
+
+                case "BOOL": {
+                    attributeValue.BOOL = value === true;
+                    break;
+                }
+
+                case "N": {
+                    attributeValue.N = value.toString();
+                    break;
+                }
+
+                default: {
+                    throw Error(`The attribute type ${attributeType} is not supported yet`);
+                }
+            }
+        }
+
+        return attributeValue;
     }
 }

@@ -267,7 +267,15 @@ export class DynamoDBExpressionTransformer {
     }
 
     private _visitStringValue(node: StringValueNode, context: TraversalContext) {
-        context.stack.push(this._setFilterAttributeValue(node.value.slice(1, node.value.length - 1), "S"));
+        let value: string;
+        if (node.isEnquote) {
+            value = node.value.slice(1, node.value.length - 1);
+        }
+        else {
+            value = node.value;
+        }
+
+        context.stack.push(this._setFilterAttributeValue(value, "S"));
     }
 
     private _visitNumberValue(node: NumberValueNode, context: TraversalContext) {

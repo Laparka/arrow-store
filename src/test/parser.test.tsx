@@ -32,7 +32,7 @@ test('Must parse a non-lambda expression', () => {
         new BooleanOperationNode(
             'And',
             new ObjectAccessorNode('brand'),
-            new FunctionNode('startsWith', new ObjectAccessorNode('brand'), new StringValueNode('"Fos"', false))
+            new FunctionNode('startsWith', new ObjectAccessorNode('brand'), new StringValueNode('"Fos"', true))
         ),
         new InverseNode(
             new InverseNode(
@@ -64,7 +64,7 @@ test('Must build AST tree for grouped expression with a function', () => {
                         new FunctionNode(
                             'startsWith',
                             new ObjectAccessorNode('x.brand'),
-                            new StringValueNode(`"Fos"`, false)
+                            new StringValueNode(`"Fos"`, true)
                         ),
                     ),
                     new CompareOperationNode(
@@ -79,7 +79,7 @@ test('Must build AST tree for grouped expression with a function', () => {
                 new CompareOperationNode(
                     'Equals',
                     new ObjectAccessorNode('x.clockType'),
-                    new StringValueNode(`'Analog'`, false)
+                    new StringValueNode(`'Analog'`, true)
                 ),
                 new InverseNode(
                     new InverseNode(
@@ -111,7 +111,7 @@ test('Must build AST tree for ungrouped AND and OR expression', () => {
                 new CompareOperationNode(
                     'Equals',
                     new ObjectAccessorNode('x.brand'),
-                    new StringValueNode(`'Fossil'`, false)
+                    new StringValueNode(`'Fossil'`, true)
                 ),
                 new CompareOperationNode(
                     'Equals',
@@ -121,7 +121,7 @@ test('Must build AST tree for ungrouped AND and OR expression', () => {
             new CompareOperationNode(
                 'Equals',
                 new ObjectAccessorNode('x.clockType'),
-                new StringValueNode(`'Analog'`, false)
+                new StringValueNode(`'Analog'`, true)
             )
         ));
 
@@ -144,7 +144,7 @@ test('Must build AST tree for ungrouped OR and AND expression', () => {
             new CompareOperationNode(
                 'Equals',
                 new ObjectAccessorNode('x.brand'),
-                new StringValueNode(`'Fossil'`, false)
+                new StringValueNode(`'Fossil'`, true)
             ),
             new BooleanOperationNode(
                 'And',
@@ -156,7 +156,7 @@ test('Must build AST tree for ungrouped OR and AND expression', () => {
                 new CompareOperationNode(
                     'Equals',
                     new ObjectAccessorNode('x.clockType'),
-                    new StringValueNode(`'Analog'`, false)
+                    new StringValueNode(`'Analog'`, true)
                 )
             )
         )
@@ -180,7 +180,7 @@ test('Must build AST tree for multiple group expressions', () => {
     const expectedTree = new LambdaExpressionNode(
         new ObjectAccessorNode("x"),
         new BooleanOperationNode('Or',
-            new CompareOperationNode('Equals', new ObjectAccessorNode('x.brand'), new StringValueNode(`'Fossil'`, false)),
+            new CompareOperationNode('Equals', new ObjectAccessorNode('x.brand'), new StringValueNode(`'Fossil'`, true)),
             new GroupNode(
                 new BooleanOperationNode('And',
                     new GroupNode(
@@ -194,7 +194,7 @@ test('Must build AST tree for multiple group expressions', () => {
                             new CompareOperationNode(
                                 'Equals',
                                 new ObjectAccessorNode('x.clockType'),
-                                new StringValueNode(`'Analog'`, false)
+                                new StringValueNode(`'Analog'`, true)
                             )
                         )
                     ),
@@ -204,7 +204,7 @@ test('Must build AST tree for multiple group expressions', () => {
                             new CompareOperationNode(
                                 'Equals',
                                 new ObjectAccessorNode('x.clockType'),
-                                new StringValueNode(`'Unknown'`, false)
+                                new StringValueNode(`'Unknown'`, true)
                             ),
                             new CompareOperationNode(
                                 'Equals',

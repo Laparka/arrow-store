@@ -141,13 +141,16 @@ export class LambdaExpressionNode extends ParserNode {
 }
 
 export class StringValueNode extends ObjectAccessorNode {
-    private readonly _isFormatString: boolean;
+    private readonly _isEnquote: boolean;
 
-    constructor(value: string, isFormatString: boolean) {
+    constructor(value: string, isEnquote: boolean) {
         super(value);
-        this._isFormatString = isFormatString;
+        this._isEnquote = isEnquote;
     }
 
+    get isEnquote(): boolean {
+        return this._isEnquote;
+    }
     get nodeType(): EXPRESSION_NODE_TYPE {
         return "StringValue";
     }

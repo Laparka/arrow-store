@@ -42,7 +42,7 @@ export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
     }
 
     getTableName(): string {
-        return "unit_test_table";
+        return "integration-test";
     }
 
 }
@@ -96,7 +96,7 @@ export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
     }
 
     getTableName(): string {
-        return "unit_test_table";
+        return "integration-test";
     }
 
 }

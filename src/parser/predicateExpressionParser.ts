@@ -136,10 +136,11 @@ export default class PredicateExpressionParser {
                 return new BoolValueNode(this._stringify(iterator.query, token) === "true");
             }
 
-            case "FormatString":
             case "String": {
                 iterator.index++;
-                return new StringValueNode(this._stringify(iterator.query, token), token.tokenType === "FormatString");
+                const value = this._stringify(iterator.query, token);
+                const isEnquote = value.length >= 2 && value[0] === value[value.length - 1] && (value[0] === '`' || value[0] === `'` || value[0] === '"');
+                return new StringValueNode(value, isEnquote);
             }
 
             case "Number": {

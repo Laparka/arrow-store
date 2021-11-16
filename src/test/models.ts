@@ -9,6 +9,8 @@ import {
 } from "../records/record";
 import {DYNAMODB_ATTRIBUTE_TYPE} from "../mappers/schemaBuilders";
 
+const tableName: string = "integration-tests";
+
 export const RECORD_TYPES = {
     ClockRecord: Symbol.for("ClockRecord")
 };
@@ -42,7 +44,7 @@ export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
     }
 
     getTableName(): string {
-        return "integration-test";
+        return tableName;
     }
 
 }
@@ -96,7 +98,7 @@ export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
     }
 
     getTableName(): string {
-        return "integration-test";
+        return tableName;
     }
 
 }

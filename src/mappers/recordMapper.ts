@@ -20,6 +20,7 @@ import {
 } from "../parser/nodes";
 import {isBoolean} from "util";
 import {isBooleanObject, isNumberObject} from "util/types";
+import {atob} from "buffer";
 
 export type KeyExpression = {
     expression: string,
@@ -287,27 +288,33 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         const result = new recordCtor();
-        const propertyNameIterator = readingSchema.keys();
-        let propertyEntry = propertyNameIterator.next();
+        const iterator = readingSchema.entries();
         let anySet = false;
-        while (!propertyEntry.done) {
-            const propertyAtt = readingSchema.get(propertyEntry.value);
-            if (!propertyAtt) {
-                throw Error(`The member schema is not defined at ${propertyEntry.value}`);
+        let schemaEntry = iterator.next();
+        while (!schemaEntry.done) {
+            const memberName = schemaEntry.value[0];
+            const attributeSchema = schemaEntry.value[1];
+            schemaEntry = iterator.next();
+            if (attributeSchema.lastChildAttributeType === "M") {
+                continue;
             }
 
-            if (this._setProperty(attributes, propertyEntry.value, propertyAtt, result)) {
-                anySet = true;
+            const attributeValue = this._findAttributeValueInMap(attributes, attributeSchema);
+            if (!attributeValue) {
+                continue;
             }
 
-            propertyEntry = propertyNameIterator.next();
+            const memberNameSegments = memberName.split('.');
+            const targetMember = this._initMembers(result, memberNameSegments);
+            targetMember[memberNameSegments[memberNameSegments.length - 1]] = this._fromAttributeValue(attributeValue, attributeSchema.lastChildAttributeType);
+            anySet = true;
         }
 
         if (!anySet) {
             throw Error(`None of the record's properties were set while reading from the DynamoDB Item`);
         }
 
-        return <TRecord>result;
+        return result;
     }
 
     private _setAttribute(propertyName: string, schema: DynamoDBAttributeSchema, source: any, attributeMap: DynamoDB.AttributeMap) {
@@ -359,119 +366,6 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         lastAttribute[attributeNameSegments[attributeNameSegments.length - 1]] = this._toAttributeValue(schema.lastChildAttributeType, sourceValue);
-    }
-
-    private _setProperty(source: DynamoDB.AttributeMap, propertyName: string, propertySchema: DynamoDBAttributeSchema, result: any): boolean {
-        if (!source) {
-            throw Error(`The DynamoDB Attribute Map is missing`);
-        }
-
-        if (!propertyName) {
-            throw Error(`The record member name is missing`);
-        }
-
-        if (!propertySchema) {
-            throw Error(`The record member mapping schema is missing`);
-        }
-
-        if (!result) {
-            throw Error(`The target record object is missing`);
-        }
-
-        const segments = propertyName.split('.');
-        if (segments.length === 1) {
-            const dynamoDBAttr = this._findAttribute(propertySchema, source);
-            if (dynamoDBAttr[propertySchema.lastChildAttributeType] === undefined) {
-                throw Error(`The DynamoDB Item's attribute does not have the ${propertySchema.lastChildAttributeType} type`);
-            }
-
-            let value: any;
-            switch (propertySchema.lastChildAttributeType) {
-                case "N": {
-                    value = parseFloat(dynamoDBAttr.N!);
-                    break;
-                }
-
-                case "BOOL": {
-                    value = new Boolean(dynamoDBAttr.BOOL);
-                    break;
-                }
-
-                case "M": {
-                    return false;
-                }
-
-                case "S": {
-                    value = dynamoDBAttr.S;
-                    break;
-                }
-
-                case "NULL": {
-                    value = null;
-                    break;
-                }
-
-                default: {
-                    throw Error(`The ${propertySchema.lastChildAttributeType} type is not supported`);
-                }
-            }
-
-            result[segments[0]] = value;
-            return true;
-        }
-
-        if (segments.length > 1) {
-            let temp = result;
-            for (let i = 0; i < segments.length - 1; i++) {
-                if (!temp.hasOwnProperty(segments[i]) || temp[segments[i]] === null) {
-                    temp[segments[i]] = {};
-                }
-
-                temp = temp[segments[i]];
-            }
-
-            return this._setProperty(source, segments[segments.length - 1], propertySchema, temp);
-        }
-
-        return false;
-    }
-
-    private _findAttribute(memberSchema: DynamoDBAttributeSchema, source: DynamoDB.AttributeMap): AttributeValue {
-        let totalIterated = 0;
-        const pathSegments: string[] = [];
-        while (++totalIterated <= 10) {
-            pathSegments.push(memberSchema.attributeName);
-            if (memberSchema.nested) {
-                memberSchema = memberSchema.nested;
-            } else {
-                break;
-            }
-        }
-
-        const attributePath = pathSegments.join('.').split('.');
-        let attribute: AttributeValue | undefined;
-        for (let i = 0; i < attributePath.length; i++) {
-            if (i === 0) {
-                attribute = source[attributePath[i]];
-                continue;
-            }
-
-            if (!attribute) {
-                throw Error(`The DynamoDB Item's attribute ${attributePath[i - 1]} could not be found`);
-            }
-
-            if (!attribute.M) {
-                throw Error(`The DynamoDB Item's attribute ${attributePath[i]} could not be found`);
-            }
-
-            attribute = attribute.M[attributePath[i]];
-        }
-
-        if (!attribute) {
-            throw Error(`The DynamoDB Item's attribute could not be found at the given path ${attributePath.join('.')}`);
-        }
-
-        return attribute;
     }
 
     private _toPrimaryKey(attributeName: string, keyAttributeMap: DynamoDB.Key, primaryKeyType: PRIMARY_ATTRIBUTE_TYPE): PrimaryKeyValue {
@@ -544,5 +438,88 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         return attributeValue;
+    }
+
+    private _findAttributeValueInMap(attributes: DynamoDB.AttributeMap, attributeSchema: DynamoDBAttributeSchema): AttributeValue | null {
+        if (!attributeSchema) {
+            return null;
+        }
+
+        const nameSegments = attributeSchema.attributeName.split('.');
+        let attributeValue;
+        for(let i = 0; i < nameSegments.length; i++) {
+            if (i === 0) {
+                attributeValue = attributes[nameSegments[i]];
+                continue;
+            }
+            else if (i + 1 < nameSegments.length && attributeValue) {
+                attributeValue = attributeValue.M;
+            }
+
+            if (!attributeValue) {
+                break;
+            }
+
+            attributeValue = attributeValue[nameSegments[i]];
+        }
+
+        if (!attributeValue) {
+            return null;
+        }
+
+        if (attributeSchema.nested) {
+            return this._findAttributeValueInMap(attributeValue.M, attributeSchema.nested);
+        }
+
+        return attributeValue;
+    }
+
+    private _initMembers(target: any, memberAccessor: string[]): any {
+        if (target === undefined || target === null) {
+            throw Error(`The target record object is not defined`);
+        }
+
+        if (memberAccessor.length === 0) {
+            throw Error(`The member accessor segments are missing`);
+        }
+
+        if (memberAccessor.length === 1) {
+            return target;
+        }
+
+        const rootMemberName = memberAccessor[0];
+        if (target[rootMemberName] === undefined || target[rootMemberName] === null) {
+            target[rootMemberName] = {};
+        }
+
+        target = target[rootMemberName];
+        return this._initMembers(target, memberAccessor.slice(1, memberAccessor.length));
+    }
+
+    private _fromAttributeValue(attributeValue: DynamoDB.AttributeValue, typeAccessor: DYNAMODB_ATTRIBUTE_TYPE): any {
+        if (!attributeValue || attributeValue.NULL === true) {
+            return null;
+        }
+
+        const rawValue = attributeValue[typeAccessor];
+        if (rawValue === undefined) {
+            throw Error(`The attribute value does not contain the ${typeAccessor}-accessor`);
+        }
+
+        switch (typeAccessor) {
+            case "N": {
+                return parseFloat(rawValue.toString());
+            }
+
+            case "BOOL": {
+                return rawValue === true;
+            }
+
+            case "S": {
+                return rawValue;
+            }
+        }
+
+        throw Error(`The ${typeAccessor}-accessor is not supported`);
     }
 }

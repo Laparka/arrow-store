@@ -248,3 +248,19 @@ export class NotTokenVisitor implements TokenVisitor {
         return index;
     }
 }
+
+export class MathOperatorTokenVisitor implements TokenVisitor {
+    private static readonly _MathOperators: string[] = ["/", "*", "-", "+"];
+    visit(query: string, index: number, tokens: QueryToken[]): number {
+        if (MathOperatorTokenVisitor._MathOperators.includes(query[index])) {
+            tokens.push({
+                tokenType: "MathOperator",
+                index: index++,
+                length: 1
+            });
+        }
+
+        return index;
+    }
+
+}

@@ -46,6 +46,10 @@ export class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSchemaBuild
         this._attributeSchema.set(this._memberName, this._asTopLevel("S", attributeName));
     }
 
+    asStringsList(attributeName: string): void {
+        this._attributeSchema.set(this._memberName, this._asTopLevel("SS", attributeName));
+    }
+
     getMemberSchema(): ReadonlyMap<string, DynamoDBAttributeSchema> {
         return this._attributeSchema;
     }

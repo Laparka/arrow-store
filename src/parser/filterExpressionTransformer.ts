@@ -1,5 +1,5 @@
 import {
-    ArgumentsNode, AssignExpressionNode,
+    ArgumentsNode,
     BooleanOperationNode,
     BoolValueNode,
     CompareOperationNode,
@@ -34,7 +34,7 @@ type TraversalContext = {
     recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>
 };
 
-export class DynamoDBExpressionTransformer {
+export class DynamoDBFilterExpressionTransformer {
     private readonly _expressionAttributeValues: Map<string, AttributeValue>;
     private readonly _expressionAttributeParamPrefix: string;
 
@@ -67,10 +67,6 @@ export class DynamoDBExpressionTransformer {
         switch (expression.nodeType) {
             case "LambdaExpression": {
                 this._visitLambda(<LambdaExpressionNode>expression, context);
-                break;
-            }
-            case "Assign": {
-                this._visitAssign(<AssignExpressionNode>expression, context);
                 break;
             }
             case "GroupExpression": {
@@ -133,22 +129,6 @@ export class DynamoDBExpressionTransformer {
         if (node.body.nodeType === 'ObjectAccessor') {
             context.stack.push(this._tryAsBool(node.body, context.stack.pop()!, context));
         }
-    }
-
-    private _visitAssign(node: AssignExpressionNode, context: TraversalContext) {
-        this._visit(node.member, context);
-        if (context.stack.length !== 1) {
-            throw Error(`The member accessor is required: ${context.stack.join(', ')}`);
-        }
-
-        const member = context.stack.pop()!;
-        this._visit(node.value, context);
-        if (context.stack.length !== 1) {
-            throw Error(`The member assigning value is required: ${context.stack.join(', ')}`);
-        }
-
-        const value = context.stack.pop()!;
-        context.stack.push(`${this._tryGetAsFilterAttribute(node.value, member, context)} = ${this._tryGetAsFilterAttribute(node.member, value, context)}`);
     }
 
     private _visitGroup(node: GroupNode, context: TraversalContext) {
@@ -233,10 +213,10 @@ export class DynamoDBExpressionTransformer {
 
                 if (inverseTimes > 1 || schema.lastChildAttributeType !== "BOOL") {
                     const attributeExists = inverseTimes % 2 === 0 ? "attribute_exists" : "attribute_not_exists";
-                    context.stack.push(`${attributeExists}(${DynamoDBExpressionTransformer._joinAttributesPath(schema)})`);
+                    context.stack.push(`${attributeExists}(${DynamoDBFilterExpressionTransformer._joinAttributesPath(schema)})`);
                 } else {
                     const parameter = this._setFilterAttributeValue(inverseTimes % 2 === 0, "BOOL");
-                    context.stack.push(`${DynamoDBExpressionTransformer._joinAttributesPath(schema)} == ${parameter}`);
+                    context.stack.push(`${DynamoDBFilterExpressionTransformer._joinAttributesPath(schema)} == ${parameter}`);
                 }
 
                 return;
@@ -471,12 +451,12 @@ export class DynamoDBExpressionTransformer {
 
         let schema = this._tryFindSchemaByPath(context.recordSchema, accessor, context.rootParameterName);
         if (schema) {
-            return DynamoDBExpressionTransformer._joinAttributesPath(schema);
+            return DynamoDBFilterExpressionTransformer._joinAttributesPath(schema);
         }
 
         schema = this._tryFindSchemaByPath(context.recordSchema, accessor, context.rootParameterName, "length");
         if (schema) {
-            return `size(${DynamoDBExpressionTransformer._joinAttributesPath(schema)})`;
+            return `size(${DynamoDBFilterExpressionTransformer._joinAttributesPath(schema)})`;
         }
 
         return accessor;

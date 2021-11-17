@@ -2,9 +2,9 @@ import {DynamoDBRecord, DynamoDBRecordIndex} from "../records/record";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDBClientResolver} from "./dynamoResolver";
-import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
+import {DynamoDBFilterExpressionTransformer} from "../parser/filterExpressionTransformer";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
-import PredicateExpressionParser from "../parser/predicateExpressionParser";
+import FilterExpressionParser from "../parser/filterExpressionParser";
 import {UpdateItemInput} from "aws-sdk/clients/dynamodb";
 
 export interface UpdateBuilder<TRecord extends DynamoDBRecord> {
@@ -22,7 +22,7 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
 
-    private readonly _expressionTransformer: DynamoDBExpressionTransformer;
+    private readonly _expressionTransformer: DynamoDBFilterExpressionTransformer;
     private readonly _conditionExpressions: string[];
     private readonly _updateExpressions: string[];
 
@@ -36,7 +36,7 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
 
-        this._expressionTransformer = new DynamoDBExpressionTransformer("updateParam");
+        this._expressionTransformer = new DynamoDBFilterExpressionTransformer("updateParam");
         this._conditionExpressions = [];
         this._updateExpressions = [];
     }
@@ -59,6 +59,11 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
     }
 
     update<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord> {
+        if (!expression) {
+            throw Error(`The update expression is missing`);
+        }
+
+        this._updateExpressions.push(this._toExpression(expression.toString(), parametersMap));
         return this;
     }
 
@@ -119,7 +124,7 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         }
 
         const tokens = LambdaPredicateLexer.Instance.tokenize(query);
-        const expression = PredicateExpressionParser.Instance.parse(query, tokens);
+        const expression = FilterExpressionParser.Instance.parse(query, tokens);
         const readingSchema = this._schemaProvider.getReadingSchema(this._recordId.getRecordTypeId());
         return this._expressionTransformer.transform(readingSchema, expression, parametersMap);
     }

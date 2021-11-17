@@ -10,7 +10,7 @@ import {
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema, DynamoDBSchemaProvider} from "./schemaBuilders";
 import {DynamoDB} from "aws-sdk";
 import {AttributeMap, AttributeValue} from "aws-sdk/clients/dynamodb";
-import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
+import {DynamoDBFilterExpressionTransformer} from "../parser/filterExpressionTransformer";
 import {
     BooleanOperationNode,
     CompareOperationNode,
@@ -141,7 +141,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
     }
 
     toKeyExpression(primaryKeys: readonly DynamoDBPrimaryKeyExpression[]): KeyExpression {
-        const keyExpressionTransformer = new DynamoDBExpressionTransformer("primary");
+        const keyExpressionTransformer = new DynamoDBFilterExpressionTransformer("primary");
         const expressions: ParserNode[] = [];
         for (let i = 0; i < primaryKeys.length; i++) {
             const key = primaryKeys[i];

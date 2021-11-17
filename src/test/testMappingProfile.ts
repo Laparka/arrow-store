@@ -106,17 +106,19 @@ export class TestMappingProfile implements DynamoDBMappingProfile {
             .forMember(x => x.clockModel, readAs => readAs.asString("Id"))
             .forMember(x => x.clockType, readAs => readAs.asString("RECORD_DATA.CLOCK_TYPE"))
             .forMember(x => x.isCertified, readAs => readAs.asBool("RECORD_DATA.IS_CERTIFIED"))
+            .forMember(x => x.eligibleInCountries, readAs => readAs.asStringsList("RECORD_DATA.ELIGIBLE_IN_COUNTRIES"))
+            .forMember(x => x.availableInStores, readAs => readAs.asStringsList("RECORD_DATA.AVAILABLE_IN_STORES"))
             .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
                 nested
                     .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
                     .forMember(x => x!.serialNumber, from => from.asString("SERIAL_NUMBER"))));
         builder
             .createWriterFor<ClockRecord>(RECORD_TYPES.ClockRecord)
-            .forMember(x => x.totalSegments, readAs => readAs.asNumber("RECORD_DATA.TOTAL_SEGMENTS"))
-            .forMember(x => x.brand, readAs => readAs.asString("RECORD_DATA.BRAND"))
-            .forMember(x => x.clockType, readAs => readAs.asString("RECORD_DATA.CLOCK_TYPE"))
-            .forMember(x => x.isCertified, readAs => readAs.asBool("RECORD_DATA.IS_CERTIFIED"))
-            .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
+            .forMember(x => x.totalSegments, writeAs => writeAs.asNumber("RECORD_DATA.TOTAL_SEGMENTS"))
+            .forMember(x => x.brand, writeAs => writeAs.asString("RECORD_DATA.BRAND"))
+            .forMember(x => x.clockType, writeAs => writeAs.asString("RECORD_DATA.CLOCK_TYPE"))
+            .forMember(x => x.isCertified, writeAs => writeAs.asBool("RECORD_DATA.IS_CERTIFIED"))
+            .forMember(x => x.clockDetails, writeAs => writeAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
                 nested
                     .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
                     .forMember(x => x!.serialNumber, from => from.asString("SERIAL_NUMBER"))));

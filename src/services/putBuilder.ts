@@ -2,9 +2,9 @@ import {DynamoDBRecord} from "../records/record";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDBClientResolver} from "./dynamoResolver";
-import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
+import {DynamoDBFilterExpressionTransformer} from "../parser/filterExpressionTransformer";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
-import PredicateExpressionParser from "../parser/predicateExpressionParser";
+import FilterExpressionParser from "../parser/filterExpressionParser";
 import {PutItemInput} from "aws-sdk/clients/dynamodb";
 
 export interface PutBuilder<TRecord extends DynamoDBRecord> {
@@ -17,7 +17,7 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
-    private readonly _expressionTransformer: DynamoDBExpressionTransformer;
+    private readonly _expressionTransformer: DynamoDBFilterExpressionTransformer;
     private readonly _conditionExpressions: string[];
 
     constructor(record: TRecord,
@@ -28,7 +28,7 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
-        this._expressionTransformer = new DynamoDBExpressionTransformer("filterParam");
+        this._expressionTransformer = new DynamoDBFilterExpressionTransformer("filterParam");
         this._conditionExpressions = [];
     }
 
@@ -44,7 +44,7 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
         const readingSchema = this._schemaProvider.getReadingSchema(this._record.getRecordId().getRecordTypeId());
         const whereString = predicate.toString()
         const tokens = LambdaPredicateLexer.Instance.tokenize(whereString);
-        const expression = PredicateExpressionParser.Instance.parse(whereString, tokens);
+        const expression = FilterExpressionParser.Instance.parse(whereString, tokens);
         this._conditionExpressions.push(this._expressionTransformer.transform(readingSchema, expression));
         return this;
     }

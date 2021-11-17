@@ -1,7 +1,7 @@
 import {DynamoDBQueryResult, DynamoDBRecord, DynamoDBRecordIndex, DynamoDBRecordIndexBase} from "../records/record";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
-import PredicateExpressionParser from "../parser/predicateExpressionParser";
-import {DynamoDBExpressionTransformer} from "../parser/expressionTransformer";
+import FilterExpressionParser from "../parser/filterExpressionParser";
+import {DynamoDBFilterExpressionTransformer} from "../parser/filterExpressionTransformer";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {QueryInput} from 'aws-sdk/clients/dynamodb'
 import {DynamoDBClientResolver} from "./dynamoResolver";
@@ -22,7 +22,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
-    private readonly _expressionTransformer: DynamoDBExpressionTransformer;
+    private readonly _expressionTransformer: DynamoDBFilterExpressionTransformer;
 
     private readonly _filterExpressions: string[];
     private _scanIndexFwd: boolean = false;
@@ -37,7 +37,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
-        this._expressionTransformer = new DynamoDBExpressionTransformer("queryParam");
+        this._expressionTransformer = new DynamoDBFilterExpressionTransformer("queryParam");
         this._filterExpressions = [];
     }
 
@@ -48,7 +48,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
 
         const query = predicate.toString();
         const tokens = LambdaPredicateLexer.Instance.tokenize(query);
-        const expression = PredicateExpressionParser.Instance.parse(query, tokens);
+        const expression = FilterExpressionParser.Instance.parse(query, tokens);
         const readSchema = this._schemaProvider.getReadingSchema(this._recordQuery.getRecordTypeId());
         this._filterExpressions.push(this._expressionTransformer.transform(readSchema, expression, parametersMap));
         return this;

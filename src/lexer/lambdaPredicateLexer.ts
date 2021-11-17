@@ -8,12 +8,13 @@ import {
     NumberTokenVisitor,
     ObjectTokenVisitor,
     StringTokenVisitor,
-    TokenVisitor
+    TokenVisitor, MathOperatorTokenVisitor
 } from "./tokenVisitors";
 
 export default class LambdaPredicateLexer {
     private static readonly _TokenVisitors: TokenVisitor[] = [
         new CompareOperatorVisitor(),
+        new MathOperatorTokenVisitor(),
         new GroupTokenVisitor(),
         new ObjectTokenVisitor(),
         new LogicalOperatorTokenVisitor(),

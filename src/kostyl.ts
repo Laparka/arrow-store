@@ -9,9 +9,9 @@ export * from './mappers/mappingBuilder';
 export * from './mappers/recordMapper';
 export * from './mappers/schemaBuilders';
 
-export * from './parser/expressionTransformer';
+export * from './parser/filterExpressionTransformer';
 export * from './parser/nodes'
-export * from './parser/predicateExpressionParser'
+export * from './parser/filterExpressionParser'
 
 export * from './services/dynamoService';
 export * from './services/listQueryBuilder';

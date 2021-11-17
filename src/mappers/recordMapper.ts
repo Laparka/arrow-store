@@ -18,9 +18,6 @@ import {
     ObjectAccessorNode,
     ParserNode
 } from "../parser/nodes";
-import {isBoolean} from "util";
-import {isBooleanObject, isNumberObject} from "util/types";
-import {atob} from "buffer";
 
 export type KeyExpression = {
     expression: string,
@@ -68,65 +65,6 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
 
     constructor(schemaProvider: DynamoDBSchemaProvider) {
         this._schemaProvider = schemaProvider;
-    }
-
-    toAttributeType(attributeType: string): DYNAMODB_ATTRIBUTE_TYPE {
-        switch (attributeType) {
-            case "S": {
-                return "S";
-            }
-            case "N": {
-                return "N";
-            }
-            case "B": {
-                return "B";
-            }
-            case "SS": {
-                return "SS";
-            }
-            case "NS": {
-                return "NS";
-            }
-            case "BS": {
-                return "BS";
-            }
-            case "M": {
-                return "M";
-            }
-            case "L": {
-                return "L";
-            }
-            case "NULL": {
-                return "NULL";
-            }
-            case "BOOL": {
-                return "BOOL";
-            }
-        }
-
-        throw Error(`Unknown attribute type ${attributeType}`);
-    }
-
-    castValue(attributeValue: any, attributeType: DYNAMODB_ATTRIBUTE_TYPE): any {
-        switch (attributeType) {
-            case "S": {
-                return `${attributeValue}`;
-            }
-
-            case "N": {
-                return parseFloat(attributeValue);
-            }
-
-            case "BOOL": {
-                return attributeValue === true;
-            }
-
-            case "NULL": {
-                return null;
-            }
-        }
-
-        throw Error(`Not a primitive type ${attributeType}`);
     }
 
     tryGetFunctionName(operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE): string | null {
@@ -203,8 +141,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
     }
 
     toKeyExpression(primaryKeys: readonly DynamoDBPrimaryKeyExpression[]): KeyExpression {
-        const dummySchema: ReadonlyMap<string, DynamoDBAttributeSchema> = new Map<string, DynamoDBAttributeSchema>();
-        const keyExpressionTransformer = new DynamoDBExpressionTransformer(dummySchema, "primary");
+        const keyExpressionTransformer = new DynamoDBExpressionTransformer("primary");
         const expressions: ParserNode[] = [];
         for (let i = 0; i < primaryKeys.length; i++) {
             const key = primaryKeys[i];
@@ -230,7 +167,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             throw Error(`One or two query keys are required, but received ${expressions.length}`);
         }
 
-        const keyExpression = keyExpressionTransformer.transform(evaluateNode);
+        const keyExpression = keyExpressionTransformer.transform(new Map<string, DynamoDBAttributeSchema>(), evaluateNode);
         return {
             expression: keyExpression,
             attributeValues: keyExpressionTransformer.expressionAttributeValues
@@ -253,13 +190,23 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
 
         const writingSchema = this._schemaProvider.getWritingSchema(recordTypeId);
         const result: AttributeMap = {};
-        const propertiesIterator = writingSchema.keys();
+        const propertiesIterator = writingSchema.entries();
         let entry = propertiesIterator.next();
         while(!entry.done) {
-            const propertyName = entry.value;
-            const attributePath = writingSchema.get(propertyName)!;
-            this._setAttribute(propertyName, attributePath, record, result);
+            const memberName = entry.value[0];
+            const memberSchema = entry.value[1];
             entry = propertiesIterator.next();
+            if (memberSchema.lastChildAttributeType === "M") {
+                continue;
+            }
+
+            const memberValue = this._findMemberValue(memberName.split('.'), record);
+            if (memberValue === undefined) {
+                throw Error(`The member value is undefined. Member path: ${memberName}`);
+            }
+
+            const attributeValue = this._toAttributeValue(memberSchema.lastChildAttributeType, memberValue);
+            const targetAttributeMap = this._setAttributeValue(result, memberSchema, attributeValue);
         }
 
         const primaryKeys = recordId.getPrimaryKeys();
@@ -317,57 +264,6 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         return result;
     }
 
-    private _setAttribute(propertyName: string, schema: DynamoDBAttributeSchema, source: any, attributeMap: DynamoDB.AttributeMap) {
-        if (schema.lastChildAttributeType === "M") {
-            return;
-        }
-
-        if (!propertyName) {
-            throw Error(`The property name is missing`);
-        }
-
-        const accessors = propertyName.split('.');
-        if (accessors.length > 1) {
-            for(let i = 0; i < accessors.length - 1; i++) {
-                if (source === null) {
-                    throw Error(`The object ${propertyName} has null-value`);
-                }
-
-                if (!source.hasOwnProperty(accessors[i])) {
-                    throw Error(`The object does not have the ${accessors[i]} value`);
-                }
-
-                source = source[accessors[i]];
-            }
-        }
-
-        propertyName = accessors[accessors.length - 1];
-        if (source === null) {
-            throw Error(`The object has a null-value under ${propertyName}`);
-        }
-
-        if (!source.hasOwnProperty(propertyName)) {
-            throw Error(`The object does not have the ${propertyName} value`);
-        }
-
-        const sourceValue = source[propertyName];
-        if (sourceValue === undefined) {
-            throw Error(`The object has no ${propertyName} member defined`);
-        }
-
-        let attributeNameSegments = this._getSchemaFullPath(schema);
-        let lastAttribute: AttributeValue = attributeMap;
-        for(let i = 0; i < attributeNameSegments.length - 1 && attributeNameSegments.length > 1; i++) {
-            if (!lastAttribute[attributeNameSegments[i]]) {
-                lastAttribute[attributeNameSegments[i]] = {M: {}};
-            }
-
-            lastAttribute = lastAttribute[attributeNameSegments[i]].M;
-        }
-
-        lastAttribute[attributeNameSegments[attributeNameSegments.length - 1]] = this._toAttributeValue(schema.lastChildAttributeType, sourceValue);
-    }
-
     private _toPrimaryKey(attributeName: string, keyAttributeMap: DynamoDB.Key, primaryKeyType: PRIMARY_ATTRIBUTE_TYPE): PrimaryKeyValue {
         if (!attributeName) {
             throw Error(`The attribute name is missing`);
@@ -391,19 +287,8 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             throw Error(`The key attribute ${attributeName} must have one value accessor`);
         }
 
-        const attributeType = this.toAttributeType(valueAccessors[0]);
-        return new PrimaryKeyValueImpl(attributeName, attributeType, this.castValue(attribute[attributeType], attributeType));
-    }
-
-    private _getSchemaFullPath(schema: DynamoDBAttributeSchema): string[] {
-        const result: string[] = [];
-        while(schema.nested) {
-            result.push(...schema.attributeName.split('.'));
-            schema = schema.nested;
-        }
-
-        result.push(...schema.attributeName.split('.'));
-        return result;
+        const attributeType = <DYNAMODB_ATTRIBUTE_TYPE>valueAccessors[0];
+        return new PrimaryKeyValueImpl(attributeName, attributeType, this._castPrimitiveAttributeValue(attribute, attributeType));
     }
 
     private _toAttributeValue(attributeType: DYNAMODB_ATTRIBUTE_TYPE, value: any): AttributeValue {
@@ -521,5 +406,71 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         }
 
         throw Error(`The ${typeAccessor}-accessor is not supported`);
+    }
+
+    private _castPrimitiveAttributeValue(attributeValue: AttributeValue, attributeType: DYNAMODB_ATTRIBUTE_TYPE): any {
+        if (attributeValue.NULL) {
+            return null;
+        }
+
+        if (attributeValue[attributeType] === undefined) {
+            throw Error(`The ${attributeType} is undefined in the attribute value ${attributeValue}`);
+        }
+
+        switch (attributeType) {
+            case "S": {
+                return attributeValue.S;
+            }
+
+            case "N": {
+                return parseFloat(attributeValue.N!);
+            }
+
+            case "BOOL": {
+                return attributeValue.BOOL;
+            }
+        }
+
+        throw Error(`Not a primitive type ${attributeType}`);
+    }
+
+    private _findMemberValue(memberNameSegments: string[], source: any): any {
+        if (memberNameSegments.length === 0) {
+            throw Error(`The member name is missing`)
+        }
+
+        if (source === undefined) {
+            throw Error(`The source object is undefined. Member Path: ${memberNameSegments.join('.')}`);
+        }
+
+        source = source[memberNameSegments[0]];
+        if (memberNameSegments.length === 1) {
+            return source;
+        }
+
+        return this._findMemberValue(memberNameSegments.slice(1, memberNameSegments.length), source);
+    }
+
+    private _setAttributeValue(target: DynamoDB.AttributeMap, memberSchema: DynamoDBAttributeSchema, lastAttributeValue: DynamoDB.AttributeValue) {
+        const nameSegments = memberSchema.attributeName.split('.');
+        for(let i = 0; i < nameSegments.length - 1; i++) {
+            if (!target[nameSegments[i]] || !target[nameSegments[i]].M) {
+                target[nameSegments[i]] = {M: {}};
+            }
+
+            target = target[nameSegments[i]].M!;
+        }
+
+        if (memberSchema.nested) {
+            if (!target[nameSegments[nameSegments.length - 1]] || !target[nameSegments[nameSegments.length - 1]].M) {
+                target[nameSegments[nameSegments.length - 1]] = {M: {}};
+            }
+
+            target = target[nameSegments[nameSegments.length - 1]].M!;
+            this._setAttributeValue(target, memberSchema.nested, lastAttributeValue);
+        }
+        else {
+            target[nameSegments[nameSegments.length - 1]] = lastAttributeValue;
+        }
     }
 }

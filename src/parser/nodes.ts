@@ -3,7 +3,7 @@ import {COMPARE_OPERATOR_TYPE} from "../records/record";
 export type BOOLEAN_OPERATOR = 'And' | 'Or';
 export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue" | "UndefinedValue"
 export type EXPRESSION_NODE_TYPE = PROPERTY_TYPE | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
-    | "ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments";
+    | "ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments" | "Assign";
 
 export abstract class ParserNode {
     abstract get nodeType(): EXPRESSION_NODE_TYPE;
@@ -140,6 +140,33 @@ export class LambdaExpressionNode extends ParserNode {
     }
 }
 
+export class AssignExpressionNode extends ParserNode {
+    private readonly _member: ParserNode;
+    private readonly _value: ParserNode;
+    constructor(member: ParserNode, value: ParserNode) {
+        super();
+        this._member = member;
+        this._value = value;
+    }
+
+    get member(): ObjectAccessorNode {
+        if (this._member.nodeType !== "ObjectAccessor") {
+            throw Error(`The left expression must be an object accessor`);
+        }
+
+        return <ObjectAccessorNode>this._member;
+    }
+
+    get value(): ParserNode {
+        return this._value;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "Assign";
+    }
+
+
+}
 export class StringValueNode extends ObjectAccessorNode {
     private readonly _isEnquote: boolean;
 

@@ -1,9 +1,8 @@
 import {QueryToken} from "./queryTokens";
 import {
-    BooleanOperatorTokenVisitor,
+    CompareOperatorVisitor,
     CommaTokenVisitor,
     GroupTokenVisitor,
-    LambdaTokenVisitor,
     LogicalOperatorTokenVisitor,
     NotTokenVisitor,
     NumberTokenVisitor,
@@ -14,9 +13,8 @@ import {
 
 export default class LambdaPredicateLexer {
     private static readonly _TokenVisitors: TokenVisitor[] = [
-        new BooleanOperatorTokenVisitor(),
+        new CompareOperatorVisitor(),
         new GroupTokenVisitor(),
-        new LambdaTokenVisitor(),
         new ObjectTokenVisitor(),
         new LogicalOperatorTokenVisitor(),
         new NotTokenVisitor(),
@@ -24,6 +22,11 @@ export default class LambdaPredicateLexer {
         new StringTokenVisitor(),
         new CommaTokenVisitor()
     ];
+
+    public static readonly Instance: LambdaPredicateLexer = new LambdaPredicateLexer();
+
+    private constructor() {
+    }
 
     tokenize(query: string): ReadonlyArray<QueryToken> {
         if (!query) {

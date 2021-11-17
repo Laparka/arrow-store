@@ -147,22 +147,6 @@ export class GroupTokenVisitor implements TokenVisitor {
     }
 }
 
-export class LambdaTokenVisitor implements TokenVisitor {
-    visit(query: string, index: number, tokens: QueryToken[]): number {
-        if (query[index] === '=' && query.length >= index + 1 && query[index + 1] === '>') {
-            tokens.push({
-                tokenType: 'LambdaInitializer',
-                index: index,
-                length: 2
-            });
-
-            index += 2;
-        }
-
-        return index;
-    }
-}
-
 export class LogicalOperatorTokenVisitor implements TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number {
         if (query.slice(index, index + 2) === '||' || query.slice(index, index + 2) === '&&') {
@@ -179,73 +163,75 @@ export class LogicalOperatorTokenVisitor implements TokenVisitor {
     }
 }
 
-export class BooleanOperatorTokenVisitor implements TokenVisitor {
+export class CompareOperatorVisitor implements TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number {
-        let tokenType: TOKEN_TYPE;
-        let endIndex = index;
+        let tokenType: TOKEN_TYPE | undefined;
+        let nextIndex = index;
         switch (query[index]) {
+            case '!': {
+                if (query[nextIndex + 1] === '=') {
+                    nextIndex++;
+                    tokenType = 'NotEquals';
+
+                    if (query[nextIndex + 1] === '=') {
+                        nextIndex++;
+                    }
+                }
+
+                break;
+            }
+            case '=': {
+                if (query[nextIndex + 1] === '>') {
+                    tokenType = 'LambdaInitializer';
+                    nextIndex++;
+                }
+                else if (query[nextIndex + 1] === '=') {
+                    nextIndex++;
+                    tokenType = "Equals";
+                    if (query[nextIndex + 1] === '=') {
+                        nextIndex++;
+                    }
+                }
+                else {
+                    tokenType = 'Assign';
+                }
+
+                break;
+            }
             case '>': {
-                if (query[++endIndex] === '=') {
+                if (query[nextIndex + 1] === '=') {
+                    nextIndex++;
                     tokenType = 'GreaterThanOrEquals';
-                    endIndex++;
-                } else {
+                }
+                else {
                     tokenType = 'GreaterThan';
                 }
 
                 break;
             }
-
             case '<': {
-                if (query[++endIndex] === '=') {
+                if (query[nextIndex + 1] === '=') {
+                    nextIndex++;
                     tokenType = 'LessThanOrEquals';
-                    endIndex++;
-                } else {
-                    tokenType = 'LessThan';
                 }
-
-                break;
-            }
-
-            case '=': {
-                if (query[++endIndex] !== '=') {
-                    --endIndex;
-                } else {
-                    tokenType = "Equals";
-                    if (query[++endIndex] === '=') {
-                        ++endIndex;
-                    } else {
-                        --endIndex;
-                    }
-                }
-
-                break;
-            }
-
-            case '!': {
-                if (query[++endIndex] === '=') {
-                    if (query[endIndex + 1] === '=') {
-                        ++endIndex;
-                    }
-
-                    ++endIndex;
-                    tokenType = "NotEquals";
-                } else {
-                    endIndex = index;
+                else {
+                    tokenType = 'LessThanOrEquals';
                 }
 
                 break;
             }
         }
 
-        if (endIndex !== index) {
+        if (!!tokenType) {
+            nextIndex++;
             tokens.push({
                 tokenType: tokenType!,
                 index: index,
-                length: endIndex - index
+                length: nextIndex - index
             })
         }
 
-        return endIndex;
+        return nextIndex;
     }
 }
 

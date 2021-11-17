@@ -14,8 +14,10 @@ export * from './parser/nodes'
 export * from './parser/predicateExpressionParser'
 
 export * from './services/dynamoService';
-export * from './services/dynamoQuery';
+export * from './services/listQueryBuilder';
 export * from './services/dynamoResolver';
 
 
 export * from './records/record';
+export {DeleteBuilder} from "./services/deleteBuilder";
+export {PutBuilder} from "./services/putBuilder";

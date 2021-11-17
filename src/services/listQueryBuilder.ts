@@ -8,19 +8,23 @@ import {DynamoDBClientResolver} from "./dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDB} from "aws-sdk";
 
+export interface ListQueryBuilder<TRecord extends DynamoDBRecord> {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord>
+    skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord>;
+    take(takeRecords: number): ListQueryBuilder<TRecord>;
+    sortByAscending(): ListQueryBuilder<TRecord>;
+    sortByDescending(): ListQueryBuilder<TRecord>;
+    listAsync(): Promise<DynamoDBQueryResult<TRecord>>;
+}
 
-export class DynamoQuery<TRecord extends DynamoDBRecord> {
-    private static readonly _Lexer = new LambdaPredicateLexer();
-    private static readonly _Parser = new PredicateExpressionParser();
-
+export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements ListQueryBuilder<TRecord> {
     private readonly _recordQuery: DynamoDBRecordIndexBase<TRecord>;
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
-
+    private readonly _expressionTransformer: DynamoDBExpressionTransformer;
 
     private readonly _filterExpressions: string[];
-    private _expressionTransformer: DynamoDBExpressionTransformer | undefined;
     private _scanIndexFwd: boolean = false;
     private _exclusiveStartKey: DynamoDB.Key | undefined;
     private _limit: number | undefined;
@@ -33,23 +37,24 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
+        this._expressionTransformer = new DynamoDBExpressionTransformer("queryParam");
         this._filterExpressions = [];
     }
 
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): DynamoQuery<TRecord> {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord> {
         if (!predicate) {
             throw Error(`where-clause predicate is missing`);
         }
 
         const query = predicate.toString();
-        const tokens = DynamoQuery._Lexer.tokenize(query);
-        const expression = DynamoQuery._Parser.parse(query, tokens);
-        const transformer = this._getExpressionTransformer();
-        this._filterExpressions.push(transformer.transform(expression, parametersMap));
+        const tokens = LambdaPredicateLexer.Instance.tokenize(query);
+        const expression = PredicateExpressionParser.Instance.parse(query, tokens);
+        const readSchema = this._schemaProvider.getReadingSchema(this._recordQuery.getRecordTypeId());
+        this._filterExpressions.push(this._expressionTransformer.transform(readSchema, expression, parametersMap));
         return this;
     }
 
-    skipTo(recordId: DynamoDBRecordIndex): DynamoQuery<TRecord> {
+    skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord> {
         if (!recordId) {
             throw Error(`The recordId is missing`)
         }
@@ -58,7 +63,7 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    take(takeRecords: number): DynamoQuery<TRecord> {
+    take(takeRecords: number): ListQueryBuilder<TRecord> {
         if (takeRecords <= 0) {
             throw Error(`The takeRecords argument must be greater than zero`);
         }
@@ -67,12 +72,12 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
         return this;
     }
 
-    sortByAscending(): DynamoQuery<TRecord> {
+    sortByAscending(): ListQueryBuilder<TRecord> {
         this._scanIndexFwd = true;
         return this;
     }
 
-    sortByDescending(): DynamoQuery<TRecord> {
+    sortByDescending(): ListQueryBuilder<TRecord> {
         this._scanIndexFwd = false;
         return this;
     }
@@ -96,15 +101,14 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
             Limit: this._limit
         };
 
-        this._filterExpressions.forEach(filterExp => {
-            if (queryInput.FilterExpression) {
-                queryInput.FilterExpression = `(${queryInput.FilterExpression}) AND (${filterExp})`;
-            } else {
-                queryInput.FilterExpression = filterExp;
-            }
-        });
+        if (this._filterExpressions.length === 1) {
+            queryInput.FilterExpression = this._filterExpressions[0];
+        }
+        else {
+            queryInput.FilterExpression = this._filterExpressions.map(filter => `(${filter})`).join(' AND ');
+        }
 
-        this._getExpressionTransformer().expressionAttributeValues.forEach((value, key) => {
+        this._expressionTransformer.expressionAttributeValues.forEach((value, key) => {
             queryInput.ExpressionAttributeValues![key] = value;
         });
 
@@ -134,14 +138,5 @@ export class DynamoQuery<TRecord extends DynamoDBRecord> {
             total: response.Count || 0,
             records: records
         }
-    }
-
-    private _getExpressionTransformer(): DynamoDBExpressionTransformer {
-        if (!this._expressionTransformer) {
-            const readingSchema = this._schemaProvider.getReadingSchema(this._recordQuery.getRecordTypeId());
-            this._expressionTransformer = new DynamoDBExpressionTransformer(readingSchema)
-        }
-
-        return this._expressionTransformer;
     }
 }

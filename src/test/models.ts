@@ -62,6 +62,8 @@ export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
         this.isCertified = false;
         this.totalSegments = null;
         this.clockDetails = null;
+        this.eligibleInCountries = [];
+        this.availableInStores = [];
     };
 
     isCertified: boolean;
@@ -70,6 +72,9 @@ export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
     brand!: string;
     clockModel!: string;
     clockDetails: ClockDetails | null;
+    eligibleInCountries: string[];
+    availableInStores: string[];
+    reviewScore: number | undefined;
 
     protected doGetRecordId(): ClockRecordId {
         if (!this.clockModel) {

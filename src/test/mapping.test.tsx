@@ -66,6 +66,6 @@ test("Must map DynamoDB attribute map to a ClockRecord", () => {
         }
     }
 
-    const clockRecord = mapper.toRecord<ClockRecord>(RECORD_TYPES.ClockRecord, attributes);
+    const clockRecord = mapper.toRecord<ClockRecord>(ClockRecord, RECORD_TYPES.ClockRecord, attributes);
     assert(JSON.stringify(expectedClock), JSON.stringify(clockRecord));
 });

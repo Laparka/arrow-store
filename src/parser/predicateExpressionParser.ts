@@ -1,6 +1,6 @@
 import {QueryToken, TOKEN_TYPE} from "../lexer/queryTokens";
 import {
-    ArgumentsNode,
+    ArgumentsNode, AssignExpressionNode,
     BooleanOperationNode,
     BoolValueNode,
     CompareOperationNode,
@@ -27,17 +27,34 @@ type NodeIterator = {
 const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterThanOrEquals', 'LessThan', 'LessThanOrEquals'];
 
 export default class PredicateExpressionParser {
+    public static readonly Instance: PredicateExpressionParser = new PredicateExpressionParser();
+
+    private constructor() {
+    }
+
     parse(query: string, tokens: ReadonlyArray<QueryToken>): ParserNode {
         return this._lambda({query: query, index: 0, lastIndex: tokens.length - 1, tokens: tokens});
     }
 
     private _lambda(iterator: NodeIterator): ParserNode {
-        const left = this._or(iterator);
+        const left = this._assign(iterator);
         const token = this._getCurrentToken(iterator);
         if (token.tokenType === 'LambdaInitializer') {
             iterator.index++;
             const right = this._lambda(iterator);
             return new LambdaExpressionNode(left, right);
+        }
+
+        return left;
+    }
+
+    private _assign(iterator: NodeIterator): ParserNode {
+        const left = this._or(iterator);
+        const token = this._getCurrentToken(iterator);
+        if (token.tokenType === 'Assign') {
+            iterator.index++;
+            const right = this._value(iterator);
+            return new AssignExpressionNode(left, right);
         }
 
         return left;

@@ -1,5 +1,5 @@
 import {
-    ArgumentsNode,
+    ArgumentsNode, AssignExpressionNode,
     BooleanOperationNode,
     BoolValueNode,
     CompareOperationNode,
@@ -30,26 +30,30 @@ type TraversalContext = {
     stack: string[],
     contextParameters: any | undefined,
     rootParameterName?: string,
-    contextParameterName?: string
+    contextParameterName?: string,
+    recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>
 };
 
 export class DynamoDBExpressionTransformer {
-    private readonly _recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>;
     private readonly _expressionAttributeValues: Map<string, AttributeValue>;
     private readonly _expressionAttributeParamPrefix: string;
 
-    constructor(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expressionAttributeParamPrefix?: string) {
-        this._recordSchema = recordSchema;
+    constructor(expressionAttributeParamPrefix: string) {
         this._expressionAttributeValues = new Map<string, AttributeValue>();
-        this._expressionAttributeParamPrefix = expressionAttributeParamPrefix ?? "p";
+        if (expressionAttributeParamPrefix) {
+            this._expressionAttributeParamPrefix = expressionAttributeParamPrefix;
+        }
+        else {
+            this._expressionAttributeParamPrefix = "p";
+        }
     }
 
     get expressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
         return this._expressionAttributeValues;
     }
 
-    transform(expression: ParserNode, parametersMap?: any): string {
-        const ctx = {stack: [], contextParameters: parametersMap};
+    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string {
+        const ctx = {stack: [], contextParameters: parametersMap, recordSchema: recordSchema};
         this._visit(expression, ctx);
 
         if (ctx.stack.length !== 1) {
@@ -63,6 +67,10 @@ export class DynamoDBExpressionTransformer {
         switch (expression.nodeType) {
             case "LambdaExpression": {
                 this._visitLambda(<LambdaExpressionNode>expression, context);
+                break;
+            }
+            case "Assign": {
+                this._visitAssign(<AssignExpressionNode>expression, context);
                 break;
             }
             case "GroupExpression": {
@@ -125,6 +133,22 @@ export class DynamoDBExpressionTransformer {
         if (node.body.nodeType === 'ObjectAccessor') {
             context.stack.push(this._tryAsBool(node.body, context.stack.pop()!, context));
         }
+    }
+
+    private _visitAssign(node: AssignExpressionNode, context: TraversalContext) {
+        this._visit(node.member, context);
+        if (context.stack.length !== 1) {
+            throw Error(`The member accessor is required: ${context.stack.join(', ')}`);
+        }
+
+        const member = context.stack.pop()!;
+        this._visit(node.value, context);
+        if (context.stack.length !== 1) {
+            throw Error(`The member assigning value is required: ${context.stack.join(', ')}`);
+        }
+
+        const value = context.stack.pop()!;
+        context.stack.push(`${this._tryGetAsFilterAttribute(node.value, member, context)} = ${this._tryGetAsFilterAttribute(node.member, value, context)}`);
     }
 
     private _visitGroup(node: GroupNode, context: TraversalContext) {
@@ -202,7 +226,7 @@ export class DynamoDBExpressionTransformer {
         switch (childNode.nodeType) {
             case 'ObjectAccessor': {
                 const objectAccessor = <ObjectAccessorNode>childNode;
-                let schema = this._tryFindSchemaByPath(objectAccessor.value, context.rootParameterName);
+                let schema = this._tryFindSchemaByPath(context.recordSchema, objectAccessor.value, context.rootParameterName);
                 if (!schema) {
                     throw Error(`The member schema was not found. Failed to inverse ${objectAccessor.value}`);
                 }
@@ -317,7 +341,7 @@ export class DynamoDBExpressionTransformer {
         }
 
         const memberAccessor = (<ObjectAccessorNode>node).value;
-        const schema = this._tryFindSchemaByPath(memberAccessor, context.rootParameterName);
+        const schema = this._tryFindSchemaByPath(context.recordSchema, memberAccessor, context.rootParameterName);
         if (schema) {
             if (schema.lastChildAttributeType === "BOOL") {
                 return `${value} = ${this._setFilterAttributeValue(true, "BOOL")}`;
@@ -339,12 +363,12 @@ export class DynamoDBExpressionTransformer {
         }
 
         const memberAccessor = (<ObjectAccessorNode>objectSchemaNode).value;
-        let schema = this._tryFindSchemaByPath(memberAccessor, context.rootParameterName);
+        let schema = this._tryFindSchemaByPath(context.recordSchema, memberAccessor, context.rootParameterName);
         if (schema) {
-            return this._setFilterAttributeValue(value, schema.attributeType);
+            return this._setFilterAttributeValue(value, schema.lastChildAttributeType);
         }
 
-        schema = this._tryFindSchemaByPath((<ObjectAccessorNode>objectSchemaNode).value, context.rootParameterName, "length");
+        schema = this._tryFindSchemaByPath(context.recordSchema, (<ObjectAccessorNode>objectSchemaNode).value, context.rootParameterName, "length");
         if (schema) {
             return this._setFilterAttributeValue(value, "N");
         }
@@ -380,7 +404,7 @@ export class DynamoDBExpressionTransformer {
         return ctxObject;
     }
 
-    private _tryFindSchemaByPath(memberAccessPath: string, rootParameterName: string | undefined, byFunctionType?: string): DynamoDBAttributeSchema | null {
+    private _tryFindSchemaByPath(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, memberAccessPath: string, rootParameterName: string | undefined, byFunctionType?: string): DynamoDBAttributeSchema | null {
         if (!rootParameterName) {
             return null;
         }
@@ -397,7 +421,7 @@ export class DynamoDBExpressionTransformer {
         let len = pathSegments.length;
         for (; len > 0; len--) {
             accessorPath = pathSegments.slice(0, len).join('.');
-            attributeSchema = this._recordSchema.get(accessorPath);
+            attributeSchema = recordSchema.get(accessorPath);
             if (attributeSchema) {
                 break;
             } else if (byFunctionType && len === pathSegments.length && pathSegments[pathSegments.length - 1] === byFunctionType) {
@@ -445,12 +469,12 @@ export class DynamoDBExpressionTransformer {
             return contextValue;
         }
 
-        let schema = this._tryFindSchemaByPath(accessor, context.rootParameterName);
+        let schema = this._tryFindSchemaByPath(context.recordSchema, accessor, context.rootParameterName);
         if (schema) {
             return DynamoDBExpressionTransformer._joinAttributesPath(schema);
         }
 
-        schema = this._tryFindSchemaByPath(accessor, context.rootParameterName, "length");
+        schema = this._tryFindSchemaByPath(context.recordSchema, accessor, context.rootParameterName, "length");
         if (schema) {
             return `size(${DynamoDBExpressionTransformer._joinAttributesPath(schema)})`;
         }

@@ -1,7 +1,7 @@
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
 type TokenType = 'GroupStart' | 'GroupEnd' | 'LambdaInitializer' | 'CommaSeparator'
-    | 'Object' | 'Inverse'
+    | 'Object' | 'Inverse' | 'Assign'
     | 'String' | 'Number' | 'Boolean' | 'NullValue' | 'Undefined'
     | 'Or' | 'And'
     | 'Terminator';

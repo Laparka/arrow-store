@@ -14,14 +14,14 @@ const iterate = () => {
 };
 
 test('Must return empty tokens', () => {
-    const lexer = new LambdaPredicateLexer();
+    const lexer = LambdaPredicateLexer.Instance;
     assert(lexer.tokenize("").length === 0);
     assert(lexer.tokenize("           ").length === 0);
     assert(lexer.tokenize("   \r\n   \n     ").length === 0);
 });
 
 test('Must throw exception when not a lambda expression', () => {
-    const lexer = new LambdaPredicateLexer();
+    const lexer = LambdaPredicateLexer.Instance;
     throws(() => lexer.tokenize("() => {return true}"));
     throws(() => lexer.tokenize("function() {return true}"));
 });
@@ -29,7 +29,7 @@ test('Must throw exception when not a lambda expression', () => {
 test('Must tokenize the lambda expression', () => {
     const clockType: CLOCK_TYPE = 'Analog';
     const theMostShittyBrand = 'Gar';
-    const lexer = new LambdaPredicateLexer();
+    const lexer = LambdaPredicateLexer.Instance;
     const predicate: (value: ClockRecord) => boolean =
         x => !(x.brand === 'LG' || x.brand === `${theMostShittyBrand}\'ang`) &&
             ((x.clockType === 'Digital' && x.totalSegments !== 12) || x.clockType === clockType && x.clockModel === 'FTW\'1194' && x.brand === 'Fossil')
@@ -67,7 +67,7 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Equals');
     assert(tokens[iterate()].length === '==='.length);
 
-    assert(tokens[iterate()].tokenType === 'FormatString');
+    assert(tokens[iterate()].tokenType === 'String');
     assert(tokens[iterate()].length === '`${theMostShittyBrand}\\\'ang`'.length);
 
     assert(tokens[iterate()].tokenType === 'GroupEnd');

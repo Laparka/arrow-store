@@ -16,6 +16,7 @@ import {
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
+import {ExpressionTransformer, TraversalContext} from "./expressionTransformer";
 
 const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
     ["Equals", "="],
@@ -26,15 +27,7 @@ const compareOperatorMap = new Map<COMPARE_OPERATOR_TYPE, string>([
     ["GreaterThanOrEquals", ">="]
 ]);
 
-type TraversalContext = {
-    stack: string[],
-    contextParameters: any | undefined,
-    rootParameterName?: string,
-    contextParameterName?: string,
-    recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>
-};
-
-export class DynamoDBFilterExpressionTransformer {
+export class DynamoDBFilterExpressionTransformer implements ExpressionTransformer {
     private readonly _expressionAttributeValues: Map<string, AttributeValue>;
     private readonly _expressionAttributeParamPrefix: string;
 

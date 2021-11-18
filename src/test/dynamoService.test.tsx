@@ -48,11 +48,12 @@ test("Must query clock records from DynamoDB", async () => {
 
 test("Must update clock record", async () => {
     const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const params = {end: 4};
     const updated = await dynamoService.update(new ClockRecordId("DW8F1"))
         .when(x => !!x.totalSegments && x.totalSegments > 0 && !!x.eligibleInCountries && !x.eligibleInCountries.includes('USA') && !!x.availableInStores && !!x.clockDetails)
         .update(x => x.totalSegments = x.totalSegments! / 2)
         .update(x => x.eligibleInCountries = x.eligibleInCountries.concat('USA'))
-        .update(x => x.availableInStores.splice(0, 1))
+        .update((x, ctx) => x.availableInStores.splice(0, ctx.end), params)
         .delete(x => x.clockDetails)
         .add(x => x.reviewScore = 5)
         .executeAsync();

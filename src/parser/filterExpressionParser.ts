@@ -16,29 +16,24 @@ import {
     UndefinedValueNode
 } from "./nodes";
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
-
-type NodeIterator = {
-    index: number;
-    query: string;
-    lastIndex: number;
-    tokens: ReadonlyArray<QueryToken>;
-};
+import {ExpressionParser, NodeExpressionIterator} from "./expressionParser";
 
 const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterThanOrEquals', 'LessThan', 'LessThanOrEquals'];
 
-export default class FilterExpressionParser {
+export default class FilterExpressionParser implements ExpressionParser {
     public static readonly Instance: FilterExpressionParser = new FilterExpressionParser();
 
     private constructor() {
     }
 
     parse(query: string, tokens: ReadonlyArray<QueryToken>): ParserNode {
-        return this._lambda({query: query, index: 0, lastIndex: tokens.length - 1, tokens: tokens});
+        const iterator = new NodeExpressionIterator(query, tokens);
+        return this._lambda(iterator);
     }
 
-    private _lambda(iterator: NodeIterator): ParserNode {
+    private _lambda(iterator: NodeExpressionIterator): ParserNode {
         const left = this._or(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (token.tokenType === 'LambdaInitializer') {
             iterator.index++;
             const right = this._lambda(iterator);
@@ -48,9 +43,9 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _or(iterator: NodeIterator): ParserNode {
+    private _or(iterator: NodeExpressionIterator): ParserNode {
         const left = this._and(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (token.tokenType === 'Or') {
             iterator.index++;
             const right = this._or(iterator);
@@ -60,9 +55,9 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _and(iterator: NodeIterator): ParserNode {
+    private _and(iterator: NodeExpressionIterator): ParserNode {
         const left = this._compare(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (token.tokenType === 'And') {
             iterator.index++;
             const right = this._and(iterator);
@@ -72,9 +67,9 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _compare(iterator: NodeIterator): ParserNode {
+    private _compare(iterator: NodeExpressionIterator): ParserNode {
         const left = this._argument(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (_comparisonTokens.findIndex(x => x === token.tokenType) >= 0) {
             iterator.index++;
             const right = this._compare(iterator);
@@ -84,9 +79,9 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _argument(iterator: NodeIterator): ParserNode {
+    private _argument(iterator: NodeExpressionIterator): ParserNode {
         const left = this._function(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (token.tokenType === "CommaSeparator") {
             iterator.index++;
             const rightArgs = this._argument(iterator);
@@ -97,15 +92,15 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _function(iterator: NodeIterator): ParserNode {
+    private _function(iterator: NodeExpressionIterator): ParserNode {
         const left = this._value(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (token.tokenType === "GroupStart") {
             iterator.index++;
             const argumentsNode = this._argument(iterator);
-            const closingToken = this._getCurrentToken(iterator);
+            const closingToken = iterator.getCurrentToken();
             if (closingToken.tokenType !== "GroupEnd") {
-                throw Error(`A closing parenthesis token is expected in function's arguments node: ${this._stringify(iterator.query, closingToken)}`)
+                throw Error(`A closing parenthesis token is expected in function's arguments node: ${iterator.stringify(closingToken)}`)
             }
 
             iterator.index++;
@@ -118,17 +113,17 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _value(iterator: NodeIterator): ParserNode {
+    private _value(iterator: NodeExpressionIterator): ParserNode {
         const left = this._groupStart(iterator);
         if (!!left) {
             return left;
         }
 
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         switch (token.tokenType) {
             case "Object": {
                 iterator.index++;
-                return new ObjectAccessorNode(this._stringify(iterator.query, token));
+                return new ObjectAccessorNode(iterator.stringify(token));
             }
 
             case "NullValue": {
@@ -138,19 +133,19 @@ export default class FilterExpressionParser {
 
             case "Boolean": {
                 iterator.index++;
-                return new BoolValueNode(this._stringify(iterator.query, token) === "true");
+                return new BoolValueNode(iterator.stringify(token) === "true");
             }
 
             case "String": {
                 iterator.index++;
-                const value = this._stringify(iterator.query, token);
+                const value = iterator.stringify(token);
                 const isEnquote = value.length >= 2 && value[0] === value[value.length - 1] && (value[0] === '`' || value[0] === `'` || value[0] === '"');
                 return new StringValueNode(value, isEnquote);
             }
 
             case "Number": {
                 iterator.index++;
-                return new NumberValueNode(parseFloat(this._stringify(iterator.query, token)));
+                return new NumberValueNode(parseFloat(iterator.stringify(token)));
             }
 
             case "Undefined": {
@@ -159,18 +154,18 @@ export default class FilterExpressionParser {
             }
         }
 
-        throw Error(`Expected an object accessor or a value token, but received ${this._stringify(iterator.query, token)}`);
+        throw Error(`Expected an object accessor or a value token, but received ${iterator.stringify(token)}`);
     }
 
-    private _groupStart(iterator: NodeIterator): ParserNode | null {
+    private _groupStart(iterator: NodeExpressionIterator): ParserNode | null {
         const left = this._inverse(iterator);
-        const token = this._getCurrentToken(iterator);
+        const token = iterator.getCurrentToken();
         if (token.tokenType === "GroupStart") {
             iterator.index++;
             const groupNode = new GroupNode(this._lambda(iterator));
-            const groupEndToken = this._getCurrentToken(iterator);
+            const groupEndToken = iterator.getCurrentToken();
             if (groupEndToken.tokenType !== "GroupEnd") {
-                throw Error(`No closing parenthesis was found for the group expression: ${this._stringify(iterator.query, groupEndToken)}`);
+                throw Error(`No closing parenthesis was found for the group expression: ${iterator.stringify(groupEndToken)}`);
             }
 
             iterator.index++;
@@ -180,8 +175,8 @@ export default class FilterExpressionParser {
         return left;
     }
 
-    private _inverse(iterator: NodeIterator): ParserNode | null {
-        const token = this._getCurrentToken(iterator);
+    private _inverse(iterator: NodeExpressionIterator): ParserNode | null {
+        const token = iterator.getCurrentToken();
         if (token.tokenType === "Inverse") {
             iterator.index++;
             return new InverseNode(this._function(iterator));
@@ -190,27 +185,4 @@ export default class FilterExpressionParser {
         return null;
     }
 
-    private _getCurrentToken(iterator: NodeIterator): QueryToken {
-        if (iterator.index > iterator.lastIndex) {
-            return {tokenType: "Terminator", index: iterator.index, length: 0};
-        }
-
-        if (iterator.index === iterator.tokens.length) {
-            throw Error(`Never reachable`);
-        }
-
-        return iterator.tokens[iterator.index];
-    }
-
-    private _stringify(query: string, token: QueryToken): string {
-        if (!query || !token) {
-            throw Error(`The query or token parameters are missing`);
-        }
-
-        if (token.index >= query.length || token.index + token.length > query.length) {
-            throw Error(`The token length is greater than the query itself. Query:${query}, Token: ${token.index}-${token.length}`);
-        }
-
-        return query.slice(token.index, token.index + token.length);
-    }
 }

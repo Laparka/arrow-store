@@ -5,16 +5,16 @@ import {DynamoDBClientResolver} from "./dynamoResolver";
 import {DynamoDBFilterExpressionTransformer} from "../parser/filterExpressionTransformer";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import FilterExpressionParser from "../parser/filterExpressionParser";
-import {UpdateItemInput} from "aws-sdk/clients/dynamodb";
+import UpdateExpressionParser from "../parser/updateExpressionParser";
+import {DynamoDBUpdateExpressionTransformer} from "../parser/updateExpressionTransformer";
 
-export interface UpdateBuilder<TRecord extends DynamoDBRecord> {
-    when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): UpdateBuilder<TRecord>;
-    executeAsync(): Promise<boolean>;
-    update<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord>;
-    delete<TMember>(expression: (record: TRecord) => TMember): UpdateBuilder<TRecord>;
-    add<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord>;
-}
-
+export type UpdateBuilder<TRecord extends DynamoDBRecord> = {
+    when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): UpdateBuilder<TRecord>,
+    executeAsync(): Promise<boolean>,
+    update<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord>,
+    delete<TMember>(expression: (record: TRecord) => TMember): UpdateBuilder<TRecord>,
+    add<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord>,
+};
 
 export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements UpdateBuilder<TRecord> {
     private readonly _recordId: DynamoDBRecordIndex;
@@ -22,7 +22,8 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
 
-    private readonly _expressionTransformer: DynamoDBFilterExpressionTransformer;
+    private readonly _filterTransformer: DynamoDBFilterExpressionTransformer;
+    private readonly _updateTransformer: DynamoDBUpdateExpressionTransformer;
     private readonly _conditionExpressions: string[];
     private readonly _updateExpressions: string[];
 
@@ -36,7 +37,8 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
 
-        this._expressionTransformer = new DynamoDBFilterExpressionTransformer("updateParam");
+        this._filterTransformer = new DynamoDBFilterExpressionTransformer("conditionParam");
+        this._updateTransformer = new DynamoDBUpdateExpressionTransformer("updateParam");
         this._conditionExpressions = [];
         this._updateExpressions = [];
     }
@@ -46,70 +48,7 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
             throw Error(`The condition expression is missing`);
         }
 
-        this._conditionExpressions.push(this._toExpression(predicate.toString(), parametersMap));
-        return this;
-    }
-
-    add<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord> {
-        return this;
-    }
-
-    delete<TMember>(expression: (record: TRecord) => TMember): UpdateBuilder<TRecord> {
-        return this;
-    }
-
-    update<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord> {
-        if (!expression) {
-            throw Error(`The update expression is missing`);
-        }
-
-        this._updateExpressions.push(this._toExpression(expression.toString(), parametersMap));
-        return this;
-    }
-
-    async executeAsync(): Promise<boolean> {
-        if (!this._recordId || !this._recordId.getPrimaryKeys || !this._recordId.getTableName) {
-            throw Error(`The record ID is missing or does not return required parameters`);
-        }
-
-        const updateRequest: UpdateItemInput = {
-            TableName: this._recordId.getTableName(),
-            ReturnValues: "NONE",
-            ReturnConsumedCapacity: "TOTAL",
-            ReturnItemCollectionMetrics: "NONE",
-            Key: this._recordMapper.toKeyAttribute(this._recordId.getPrimaryKeys())
-        };
-
-        if (this._updateExpressions.length === 0) {
-            return false;
-        }
-        else {
-            updateRequest.UpdateExpression = this._updateExpressions.map(exp => `SET ${exp}`).join('; ');
-        }
-
-        const client = this._clientResolver.resolve();
-
-        if (this._conditionExpressions.length === 1) {
-            updateRequest.ConditionExpression = this._conditionExpressions[0];
-        }
-        else if (this._conditionExpressions.length > 1) {
-            updateRequest.ConditionExpression = this._conditionExpressions.map(condition => `(${condition})`).join(' AND ');
-        }
-
-        this._expressionTransformer.expressionAttributeValues.forEach((value, key) => {
-            if (!updateRequest.ExpressionAttributeValues) {
-                updateRequest.ExpressionAttributeValues = {};
-            }
-
-            updateRequest.ExpressionAttributeValues[key] = value;
-        });
-
-        const updateResponse = await client.updateItem(updateRequest).promise()
-        return updateResponse.$response?.httpResponse?.statusCode === 200;
-        return true;
-    }
-
-    private _toExpression(query: string, parametersMap?: any): string {
+        const query = predicate.toString();
         if (!query) {
             throw Error(`The expression string is missing`);
         }
@@ -126,6 +65,44 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         const tokens = LambdaPredicateLexer.Instance.tokenize(query);
         const expression = FilterExpressionParser.Instance.parse(query, tokens);
         const readingSchema = this._schemaProvider.getReadingSchema(this._recordId.getRecordTypeId());
-        return this._expressionTransformer.transform(readingSchema, expression, parametersMap);
+        this._conditionExpressions.push(this._filterTransformer.transform(readingSchema, expression, parametersMap));
+        return this;
+    }
+
+    add<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord> {
+        if (!expression) {
+            throw Error(`The add expression is missing`);
+        }
+
+        const addQuery = expression.toString();
+        const tokens = LambdaPredicateLexer.Instance.tokenize(addQuery);
+        return this;
+    }
+
+    delete<TMember>(expression: (record: TRecord) => TMember): UpdateBuilder<TRecord> {
+        if (!expression) {
+            throw Error(`The delete expression is missing`);
+        }
+
+        const deleteQuery = expression.toString();
+        const tokens = LambdaPredicateLexer.Instance.tokenize(deleteQuery);
+        return this;
+    }
+
+    update<TContext>(expression: (record: TRecord, context: TContext) => unknown, parametersMap?: TContext): UpdateBuilder<TRecord> {
+        if (!expression) {
+            throw Error(`The update expression is missing`);
+        }
+
+        const updateQuery = expression.toString();
+        const tokens = LambdaPredicateLexer.Instance.tokenize(updateQuery);
+        const node = UpdateExpressionParser.Instance.parse(updateQuery, tokens);
+        const writingSchema = this._schemaProvider.getWritingSchema(this._recordId.getRecordTypeId());
+        this._updateExpressions.push(this._updateTransformer.transform(writingSchema, node, parametersMap))
+        return this;
+    }
+
+    executeAsync(): Promise<boolean> {
+        throw Error(`Not implemented`);
     }
 }

@@ -23,6 +23,10 @@ export class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSchemaBuild
         this._attributeSchema.set(this._memberName, this._asTopLevel("N", attributeName));
     }
 
+    asNumbersList(attributeName: string): void {
+        this._attributeSchema.set(this._memberName, this._asTopLevel("NS", attributeName));
+    }
+
     asObject(attributeName: string, map: (attribute: DynamoDBRecordSchemaBuilder<TMember>) => DynamoDBRecordSchemaBuilder<TMember>): void {
         // Introduce the M-schema for the nested object
         this._attributeSchema.set(this._memberName, {

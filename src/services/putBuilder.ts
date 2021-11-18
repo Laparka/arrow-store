@@ -7,10 +7,10 @@ import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import FilterExpressionParser from "../parser/filterExpressionParser";
 import {PutItemInput} from "aws-sdk/clients/dynamodb";
 
-export interface PutBuilder<TRecord extends DynamoDBRecord> {
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord>;
-    executeAsync(): Promise<boolean>;
-}
+export type PutBuilder<TRecord extends DynamoDBRecord> = {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord>,
+    executeAsync(): Promise<boolean>
+};
 
 export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBuilder<TRecord> {
     private readonly _record: TRecord;

@@ -8,14 +8,14 @@ import {DynamoDBClientResolver} from "./dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDB} from "aws-sdk";
 
-export interface ListQueryBuilder<TRecord extends DynamoDBRecord> {
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord>
-    skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord>;
-    take(takeRecords: number): ListQueryBuilder<TRecord>;
-    sortByAscending(): ListQueryBuilder<TRecord>;
-    sortByDescending(): ListQueryBuilder<TRecord>;
-    listAsync(): Promise<DynamoDBQueryResult<TRecord>>;
-}
+export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord>,
+    skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord>,
+    take(takeRecords: number): ListQueryBuilder<TRecord>,
+    sortByAscending(): ListQueryBuilder<TRecord>,
+    sortByDescending(): ListQueryBuilder<TRecord>,
+    listAsync(): Promise<DynamoDBQueryResult<TRecord>>,
+};
 
 export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements ListQueryBuilder<TRecord> {
     private readonly _recordQuery: DynamoDBRecordIndexBase<TRecord>;

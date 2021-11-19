@@ -51,9 +51,9 @@ test("Must update clock record", async () => {
     const params = {end: 4};
     const updated = await dynamoService.update(new ClockRecordId("DW8F1"))
         .when(x => !!x.totalSegments && x.totalSegments > 0 && !!x.eligibleInCountries && !x.eligibleInCountries.includes('USA') && !!x.availableInStores && !!x.clockDetails)
+        .update((x, ctx) => x.availableInStores.splice(0, ctx.end), params)
         .update(x => x.totalSegments = x.totalSegments! / 2)
         .update(x => x.eligibleInCountries = x.eligibleInCountries.concat('USA'))
-        .update((x, ctx) => x.availableInStores.splice(0, ctx.end), params)
         .delete(x => x.clockDetails)
         .add(x => x.reviewScore = 5)
         .executeAsync();

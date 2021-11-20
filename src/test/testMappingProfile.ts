@@ -107,7 +107,7 @@ export class TestMappingProfile implements DynamoDBMappingProfile {
             .forMember(x => x.clockType, readAs => readAs.asString("RECORD_DATA.CLOCK_TYPE"))
             .forMember(x => x.isCertified, readAs => readAs.asBool("RECORD_DATA.IS_CERTIFIED"))
             .forMember(x => x.eligibleInCountries, readAs => readAs.asStringsList("RECORD_DATA.ELIGIBLE_IN_COUNTRIES"))
-            .forMember(x => x.availableInStores, readAs => readAs.asStringsList("RECORD_DATA.AVAILABLE_IN_STORES"))
+            .forMember(x => x.availableInStores, readAs => readAs.asObjectsList("RECORD_DATA.AVAILABLE_IN_STORES"))
             .forMember(x => x.clockDetails, readAs => readAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
                 nested
                     .forMember(x => x!.madeIn, from => from.asString("MADE_IN"))
@@ -118,7 +118,7 @@ export class TestMappingProfile implements DynamoDBMappingProfile {
             .forMember(x => x.brand, writeAs => writeAs.asString("RECORD_DATA.BRAND"))
             .forMember(x => x.clockType, writeAs => writeAs.asString("RECORD_DATA.CLOCK_TYPE"))
             .forMember(x => x.isCertified, writeAs => writeAs.asBool("RECORD_DATA.IS_CERTIFIED"))
-            .forMember(x => x.availableInStores, writeAs => writeAs.asStringsList("RECORD_DATA.AVAILABLE_IN_STORES"))
+            .forMember(x => x.availableInStores, writeAs => writeAs.asObjectsList("RECORD_DATA.AVAILABLE_IN_STORES"))
             .forMember(x => x.eligibleInCountries, writeAs => writeAs.asStringsList("RECORD_DATA.ELIGIBLE_IN_COUNTRIES"))
             .forMember(x => x.clockDetails, writeAs => writeAs.asObject("RECORD_DATA.CLOCK_DETAILS", nested =>
                 nested

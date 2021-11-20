@@ -1,8 +1,13 @@
 import {ExpressionTransformer, TraversalContext} from "./expressionTransformer";
 import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {LambdaExpressionNode, ObjectAccessorNode, ParserNode} from "./nodes";
+import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
 export class DynamoDBDestroyExpressionTransformer implements ExpressionTransformer {
+    getExpressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
+        throw Error(`Not supported`);
+    }
+
     transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode): string {
         const ctx: TraversalContext = {
             stack: [],

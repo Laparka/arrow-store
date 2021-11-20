@@ -40,8 +40,7 @@ export class DynamoDBFilterExpressionTransformer implements ExpressionTransforme
             this._expressionAttributeParamPrefix = "p";
         }
     }
-
-    get expressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
+    getExpressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
         return this._expressionAttributeValues;
     }
 

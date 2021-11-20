@@ -21,6 +21,8 @@ export interface DynamoDBMemberSchemaBuilder<TMember> {
 
     asNumbersList(attributeName: string): void;
 
+    asObjectsList(attributeName: string): void;
+
     asBool(attributeName: string): void;
 
     getMemberSchema(): ReadonlyMap<string, DynamoDBAttributeSchema>;

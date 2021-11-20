@@ -1,5 +1,6 @@
 import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {ParserNode} from "./nodes";
+import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
 export type TraversalContext = {
     stack: string[],
@@ -11,4 +12,5 @@ export type TraversalContext = {
 
 export type ExpressionTransformer = {
     transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string
+    getExpressionAttributeValues(): ReadonlyMap<string, AttributeValue>;
 };

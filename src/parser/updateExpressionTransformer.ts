@@ -24,6 +24,10 @@ export class DynamoDBUpdateExpressionTransformer implements ExpressionTransforme
         this._attributeNameRefs = new Map<string, DynamoDBAttributeSchema>();
     }
 
+    getExpressionAttributeValues(): ReadonlyMap<string, AttributeValue> {
+        return this._attributeValues;
+    }
+
     transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string {
         const context: TraversalContext = {
             stack: [],
@@ -224,6 +228,10 @@ export class DynamoDBUpdateExpressionTransformer implements ExpressionTransforme
     }
 
     private _visitMath(mathExp: MathOperationNode, context: TraversalContext) {
+        if (mathExp.operator !== '+' && mathExp.operator !== '-') {
+            throw Error(`Only increment and decrement operators are supported`);
+        }
+
         this._visit(mathExp.left, context);
         if (context.stack.length !== 1) {
             throw Error(`The stack must contain one left math operand expression. But contains ${context.stack.join(', ')}`);
@@ -281,6 +289,7 @@ export class DynamoDBUpdateExpressionTransformer implements ExpressionTransforme
 
     private _tryAppendToAttributeNames(memberAccessor: string, stack: string[]): string[] {
         const attributeRef = this._attributeNameRefs.get(memberAccessor);
+
         // empty the stack
         const values = stack.splice(0, stack.length);
         if (!attributeRef) {
@@ -290,7 +299,7 @@ export class DynamoDBUpdateExpressionTransformer implements ExpressionTransforme
         const refKey = `${attributeRef.lastChildAttributeType}:${values.join('|')}`;
         let attributeValueRef = this._attributeValueRefs.get(refKey);
         if (attributeValueRef !== undefined) {
-            return [`:${attributeValueRef}`];
+            return [attributeValueRef];
         }
 
         let attributeValue: AttributeValue;
@@ -346,14 +355,28 @@ export class DynamoDBUpdateExpressionTransformer implements ExpressionTransforme
                 break;
             }
 
+            case "L": {
+                attributeValue = {L: []};
+                for(let i = 0; i < values.length; i++) {
+                    if (Array.isArray(values[i])) {
+                        const strings = <Array<string>><any>values[i];
+                        strings.forEach(s => attributeValue.L!.push({S: s}));
+                    }
+                    else {
+                        attributeValue.L!.push({S: values[i]});
+                    }
+                }
+                break;
+            }
+
             default: {
                 throw Error(`Not supported attribute type`);
             }
         }
 
-        const key = [this._paramPrefix, this._attributeValues.size].join('_');
+        const key = `:${[this._paramPrefix, this._attributeValues.size].join('')}`;
         this._attributeValues.set(key, attributeValue);
         this._attributeValueRefs.set(refKey, key);
-        return [`:${key}`];
+        return [key];
     }
 }

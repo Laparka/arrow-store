@@ -9,6 +9,7 @@ import UpdateExpressionParser from "../parser/updateExpressionParser";
 import {DynamoDBUpdateExpressionTransformer} from "../parser/updateExpressionTransformer";
 import {ExpressionTransformer} from "../parser/expressionTransformer";
 import {DynamoDBDestroyExpressionTransformer} from "../parser/destroyExpressionTransformer";
+import {AttributeValue, UpdateItemInput} from "aws-sdk/clients/dynamodb";
 
 export type UpdateBuilder<TRecord extends DynamoDBRecord> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): UpdateBuilder<TRecord>,
@@ -28,7 +29,6 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
     private readonly _destroyTransformer: ExpressionTransformer;
     private readonly _conditionExpressions: string[];
     private readonly _updateExpressions: Map<string, string[]>;
-    private readonly _destroyExpressions: string[];
 
     constructor(recordId: DynamoDBRecordIndex,
                 schemaProvider: DynamoDBSchemaProvider,
@@ -45,7 +45,6 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         this._destroyTransformer = new DynamoDBDestroyExpressionTransformer();
         this._conditionExpressions = [];
         this._updateExpressions = new Map<string, string[]>();
-        this._destroyExpressions = [];
     }
 
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): UpdateBuilder<TRecord> {
@@ -83,8 +82,14 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         const tokens = LambdaPredicateLexer.Instance.tokenize(deleteQuery);
         const node = UpdateExpressionParser.Instance.parse(deleteQuery, tokens);
         const writingSchema = this._schemaProvider.getWritingSchema(this._recordId.getRecordTypeId());
-        const deleteExp = this._destroyTransformer.transform(writingSchema, node);
-        this._destroyExpressions.push(deleteExp);
+        const destroyExp = this._destroyTransformer.transform(writingSchema, node);
+        let removeExps = this._updateExpressions.get("REMOVE");
+        if (!removeExps) {
+            removeExps = [];
+            this._updateExpressions.set("REMOVE", removeExps);
+        }
+
+        removeExps.push(destroyExp);
         return this;
     }
 
@@ -131,7 +136,47 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
         return this;
     }
 
-    executeAsync(): Promise<boolean> {
-        throw Error(`Not implemented`);
+    async executeAsync(): Promise<boolean> {
+        const client = this._clientResolver.resolve();
+        const updateInput: UpdateItemInput = {
+            Key: this._recordMapper.toKeyAttribute(this._recordId.getPrimaryKeys()),
+            ReturnValues: "NONE",
+            TableName: this._recordId.getTableName()
+        };
+
+        const updateExp: string[] = [];
+        if (this._updateExpressions.size !== 0) {
+            this._updateExpressions.forEach((value, key) => {
+                updateExp.push(`${key} ${value.join(', ')}`);
+            });
+
+            this._populateAttributeValues(updateInput, this._updateTransformer.getExpressionAttributeValues());
+        }
+
+        if (updateExp.length !== 0) {
+            updateInput.UpdateExpression = updateExp.join(' ');
+        }
+        if (this._conditionExpressions.length === 1) {
+            updateInput.ConditionExpression = this._conditionExpressions[0];
+        }
+        else if (this._conditionExpressions.length > 1) {
+            updateInput.ConditionExpression = this._conditionExpressions.map(x => `(${x})`).join(' AND ');
+        }
+
+        this._populateAttributeValues(updateInput, this._filterTransformer.getExpressionAttributeValues());
+        const response = await client.updateItem(updateInput).promise();
+        return response?.$response?.httpResponse?.statusCode === 200;
+    }
+
+    private _populateAttributeValues(updateInput: UpdateItemInput, expressionAttributeValues: ReadonlyMap<string, AttributeValue>) {
+        if (expressionAttributeValues.size === 0) {
+            return;
+        }
+
+        if (!updateInput.ExpressionAttributeValues) {
+            updateInput.ExpressionAttributeValues = {};
+        }
+
+        expressionAttributeValues.forEach((value, key) => updateInput.ExpressionAttributeValues![key] = value);
     }
 }

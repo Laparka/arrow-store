@@ -7,6 +7,7 @@ import {QueryInput} from 'aws-sdk/clients/dynamodb'
 import {DynamoDBClientResolver} from "./dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDB} from "aws-sdk";
+import {ExpressionTransformer} from "../parser/expressionTransformer";
 
 export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
     where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord>,
@@ -22,7 +23,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
-    private readonly _expressionTransformer: DynamoDBFilterExpressionTransformer;
+    private readonly _expressionTransformer: ExpressionTransformer;
 
     private readonly _filterExpressions: string[];
     private _scanIndexFwd: boolean = false;
@@ -108,7 +109,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
             queryInput.FilterExpression = this._filterExpressions.map(filter => `(${filter})`).join(' AND ');
         }
 
-        this._expressionTransformer.expressionAttributeValues.forEach((value, key) => {
+        this._expressionTransformer.getExpressionAttributeValues().forEach((value, key) => {
             queryInput.ExpressionAttributeValues![key] = value;
         });
 

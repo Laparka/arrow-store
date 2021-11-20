@@ -85,7 +85,7 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
             putRequest.ConditionExpression = this._conditionExpressions.map(condition => `(${condition})`).join(' AND ');
         }
 
-        this._expressionTransformer.expressionAttributeValues.forEach((value, key) => {
+        this._expressionTransformer.getExpressionAttributeValues().forEach((value, key) => {
             if (!putRequest.ExpressionAttributeValues) {
                 putRequest.ExpressionAttributeValues = {};
             }

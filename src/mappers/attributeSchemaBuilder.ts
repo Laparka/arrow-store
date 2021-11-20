@@ -46,6 +46,10 @@ export class DynamoDBMemberBuilder<TMember> implements DynamoDBMemberSchemaBuild
         });
     }
 
+    asObjectsList(attributeName: string): void {
+        this._attributeSchema.set(this._memberName, this._asTopLevel("L", attributeName));
+    }
+
     asString(attributeName: string): void {
         this._attributeSchema.set(this._memberName, this._asTopLevel("S", attributeName));
     }

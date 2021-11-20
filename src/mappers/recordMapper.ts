@@ -170,7 +170,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         const keyExpression = keyExpressionTransformer.transform(new Map<string, DynamoDBAttributeSchema>(), evaluateNode);
         return {
             expression: keyExpression,
-            attributeValues: keyExpressionTransformer.expressionAttributeValues
+            attributeValues: keyExpressionTransformer.getExpressionAttributeValues()
         };
     }
 

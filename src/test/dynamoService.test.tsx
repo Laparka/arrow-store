@@ -48,13 +48,14 @@ test("Must query clock records from DynamoDB", async () => {
 
 test("Must update clock record", async () => {
     const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    const params = {end: 4};
+    const params = {end: 4, stores: ["Target", "Costco"]};
     const updated = await dynamoService.update(new ClockRecordId("DW8F1"))
         .when(x => !!x.totalSegments && x.totalSegments > 0 && !!x.eligibleInCountries && !x.eligibleInCountries.includes('USA') && !!x.availableInStores && !!x.clockDetails)
+        .update((x, ctx) => x.availableInStores = x.availableInStores.concat(ctx.stores), params)
+        .update((x, ctx) => x.eligibleInCountries = x.eligibleInCountries.concat("CAN", "USA"), params)
         .update((x, ctx) => x.availableInStores.splice(0, ctx.end), params)
         .update(x => x.totalSegments = x.totalSegments! / 2)
         .update(x => x.eligibleInCountries = x.eligibleInCountries.concat('USA'))
-        .delete(x => x.clockDetails)
-        .add(x => x.reviewScore = 5)
+        .destroy(x => x.clockDetails)
         .executeAsync();
 });

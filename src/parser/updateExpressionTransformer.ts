@@ -1,5 +1,4 @@
-import {UpdateExpressionTransformer} from "../mappers/updateExpressionTransformer";
-import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
+import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {
     ArgumentsNode,
     AssignExpressionNode, FunctionNode,
@@ -9,17 +8,20 @@ import {
     ParserNode,
     MathOperationNode, NumberValueNode, StringValueNode, BoolValueNode
 } from "./nodes";
-import {TraversalContext} from "./expressionTransformer";
+import {ExpressionTransformer, TraversalContext} from "./expressionTransformer";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
-export class DynamoDBUpdateExpressionTransformer implements UpdateExpressionTransformer {
+export class DynamoDBUpdateExpressionTransformer implements ExpressionTransformer {
     private readonly _paramPrefix: string;
     private readonly _attributeValues: Map<string, AttributeValue>;
     private readonly _attributeValueRefs: Map<string, string>;
+    private readonly _attributeNameRefs: Map<string, DynamoDBAttributeSchema>;
+
     constructor(paramPrefix: string) {
         this._paramPrefix = paramPrefix;
         this._attributeValues = new Map<string, AttributeValue>();
         this._attributeValueRefs = new Map<string, string>();
+        this._attributeNameRefs = new Map<string, DynamoDBAttributeSchema>();
     }
 
     transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string {
@@ -154,13 +156,14 @@ export class DynamoDBUpdateExpressionTransformer implements UpdateExpressionTran
             throw Error(`The stack must contain one member accessor assignee expression. But contains ${context.stack.join(', ')}`);
         }
 
+        const beforeAttributes = this._attributeValues.size;
         const memberAccessor = context.stack.pop()!;
         this._visit(assignExp.value, context);
         if (context.stack.length !== 1) {
             throw Error(`The stack must contain one value expression for the assigning. But contains ${context.stack.join(', ')}`);
         }
 
-        const value = context.stack.pop()!;
+        let value = beforeAttributes === this._attributeValues.size ? this._tryAppendToAttributeNames(memberAccessor, context.stack) : context.stack.pop()!;
         context.stack.push(`SET ${memberAccessor} = ${value}`);
     }
 
@@ -208,7 +211,8 @@ export class DynamoDBUpdateExpressionTransformer implements UpdateExpressionTran
             }
 
             case Array.prototype.concat.name: {
-                const args = [calleeExp, ...context.stack.splice(0, context.stack.length)].join(', ');
+                const argRefs = this._tryAppendToAttributeNames(calleeExp, context.stack);
+                const args = [calleeExp, ...argRefs].join(', ');
                 context.stack.push(`list_append(${args})`)
                 break;
             }
@@ -231,21 +235,22 @@ export class DynamoDBUpdateExpressionTransformer implements UpdateExpressionTran
             throw Error(`The stack must contain one right math operand expression. But contains ${context.stack.join(', ')}`);
         }
 
-        const rightOperand = context.stack.pop()!;
-        context.stack.push(`${leftOperand} ${mathExp.operator} ${rightOperand}`);
+        context.stack.push(`${leftOperand} ${mathExp.operator} ${this._tryAppendToAttributeNames(leftOperand, context.stack)}`);
     }
 
     private _toMemberSchema(pathSegments: string[], context: TraversalContext): string {
         let memberSchema = context.recordSchema.get(pathSegments.join('.'));
         if (memberSchema && memberSchema.lastChildAttributeType !== "M") {
-            return this._toAttributePath(memberSchema);
+            const attributePath = this._toAttributePath(memberSchema);
+            this._attributeNameRefs.set(attributePath, memberSchema);
+            return attributePath;
         }
 
         throw Error(`No ${pathSegments.join('.')} member was found in the writing schema`);
     }
 
-    private _toContextParamValue(pathSegments: string[], context: TraversalContext): string {
-        return this._evalObject(pathSegments, context.contextParameters);
+    private _toContextParamValue(pathSegments: string[], context: TraversalContext): any {
+        return  this._evalObject(pathSegments, context.contextParameters);
     }
 
     private _toAttributePath(memberSchema: DynamoDBAttributeSchema): string {
@@ -272,5 +277,83 @@ export class DynamoDBUpdateExpressionTransformer implements UpdateExpressionTran
         }
 
         return obj
+    }
+
+    private _tryAppendToAttributeNames(memberAccessor: string, stack: string[]): string[] {
+        const attributeRef = this._attributeNameRefs.get(memberAccessor);
+        // empty the stack
+        const values = stack.splice(0, stack.length);
+        if (!attributeRef) {
+            return values;
+        }
+
+        const refKey = `${attributeRef.lastChildAttributeType}:${values.join('|')}`;
+        let attributeValueRef = this._attributeValueRefs.get(refKey);
+        if (attributeValueRef !== undefined) {
+            return [`:${attributeValueRef}`];
+        }
+
+        let attributeValue: AttributeValue;
+        switch (attributeRef.lastChildAttributeType) {
+            case "S": {
+                if (values.length !== 1) {
+                    throw Error(`The value type mismatch. String (S) was expected`);
+                }
+
+                attributeValue = {S: values[0]};
+                break;
+            }
+
+            case "BOOL": {
+                if (values.length !== 1 || (values[0] !== "true" && values[0] !== "false")) {
+                    throw Error(`The value type mismatch. Boolean (BOOL) was expected`);
+                }
+
+                attributeValue = {BOOL: values[0] === "true"};
+                break;
+            }
+
+            case "N": {
+                if (values.length !== 1 || isNaN(parseFloat(values[0]))) {
+                    throw Error(`The value type mismatch. Number (N) was expected`);
+                }
+
+                attributeValue = {N: values[0]};
+                break;
+            }
+
+            case "NS": {
+                attributeValue = {NS: []};
+                for(let i = 0; i < values.length; i++) {
+                    const numbersArray = <Array<number>><any>values[i];
+                    attributeValue.NS!.push(...numbersArray.map(n => n.toString()));
+                }
+
+                break;
+            }
+
+            case "SS": {
+                attributeValue = {SS: []};
+                for(let i = 0; i < values.length; i++) {
+                    if (Array.isArray(values[i])) {
+                        const strings = <Array<string>><any>values[i];
+                        attributeValue.SS!.push(...strings);
+                    }
+                    else {
+                        attributeValue.SS?.push(values[i]);
+                    }
+                }
+                break;
+            }
+
+            default: {
+                throw Error(`Not supported attribute type`);
+            }
+        }
+
+        const key = [this._paramPrefix, this._attributeValues.size].join('_');
+        this._attributeValues.set(key, attributeValue);
+        this._attributeValueRefs.set(refKey, key);
+        return [`:${key}`];
     }
 }

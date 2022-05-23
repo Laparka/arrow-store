@@ -1,9 +1,9 @@
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
-export type BOOLEAN_OPERATOR = 'And' | 'Or';
-export type PROPERTY_TYPE = "StringValue" | "NumberValue" | "BooleanValue" | "NullValue" | "UndefinedValue"
-export type EXPRESSION_NODE_TYPE = PROPERTY_TYPE | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
-    | "ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments" | "Assign" | "MathOperation";
+export type BOOLEAN_OPERATOR = 'AND' | 'OR';
+export type EXPRESSION_NODE_TYPE = "ConstantValue" | "NullValue" | "UndefinedValue" | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"
+    | "ObjectAccessor" | "BooleanOperation" | "CompareOperation" | "Arguments" | "Size"
+    | "Assign" | "MathOperation" | "Increment" | "AttributeExists" | "AttributeNotExists"  | "SetWhenNotExists";
 
 export abstract class ParserNode {
     abstract get nodeType(): EXPRESSION_NODE_TYPE;
@@ -26,7 +26,7 @@ export class ObjectAccessorNode extends ParserNode {
     }
 }
 
-export class FunctionNode extends ParserNode {
+export class FunctionExpressionNode extends ParserNode {
     private readonly _functionName: string;
     private readonly _instance: ObjectAccessorNode;
     private readonly _args: ParserNode;
@@ -48,7 +48,7 @@ export class FunctionNode extends ParserNode {
 
     get args(): ParserNode[] {
         if (this._args.nodeType === "Arguments") {
-            return (<ArgumentsNode>this._args).args;
+            return (<ArgumentsExpressionNode>this._args).args;
         }
 
         return [this._args];
@@ -59,7 +59,7 @@ export class FunctionNode extends ParserNode {
     }
 }
 
-export class BooleanOperationNode extends ParserNode {
+export class BooleanExpressionNode extends ParserNode {
     private readonly _booleanOperator: BOOLEAN_OPERATOR;
     private readonly _leftOperand: ParserNode;
     private readonly _rightOperand: ParserNode;
@@ -88,7 +88,7 @@ export class BooleanOperationNode extends ParserNode {
     }
 }
 
-export class CompareOperationNode extends ParserNode {
+export class CompareExpressionNode extends ParserNode {
     private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE;
     private readonly _leftOperand: ParserNode;
     private readonly _rightOperand: ParserNode;
@@ -166,7 +166,29 @@ export class AssignExpressionNode extends ParserNode {
     }
 }
 
-export class MathOperationNode extends ParserNode {
+export class IncrementExpressionNode extends ParserNode {
+    private readonly _target: ParserNode;
+    private readonly _incrementValue: ParserNode;
+    constructor(target: ParserNode, incrementValue: ParserNode) {
+        super();
+        this._target = target;
+        this._incrementValue = incrementValue;
+    }
+
+    get member(): ParserNode {
+        return this._target;
+    }
+
+    get incrementValue(): ParserNode {
+        return this._incrementValue;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "Increment";
+    }
+
+}
+export class MathExpressionNode extends ParserNode {
     private readonly _left: ParserNode;
     private readonly _right: ParserNode;
     private readonly _operator: string;
@@ -193,69 +215,8 @@ export class MathOperationNode extends ParserNode {
         return "MathOperation";
     }
 }
-export class StringValueNode extends ObjectAccessorNode {
-    private readonly _isEnquote: boolean;
 
-    constructor(value: string, isEnquote: boolean) {
-        super(value);
-        this._isEnquote = isEnquote;
-    }
-
-    get isEnquote(): boolean {
-        return this._isEnquote;
-    }
-    get nodeType(): EXPRESSION_NODE_TYPE {
-        return "StringValue";
-    }
-}
-
-export class NumberValueNode extends ParserNode {
-    private readonly _value: number;
-
-    constructor(value: number) {
-        super();
-        this._value = value;
-    }
-
-    get value(): number {
-        return this._value;
-    }
-
-    get nodeType(): EXPRESSION_NODE_TYPE {
-        return "NumberValue";
-    }
-}
-
-export class NullValueNode extends ParserNode {
-    get nodeType(): EXPRESSION_NODE_TYPE {
-        return "NullValue";
-    }
-}
-
-export class UndefinedValueNode extends ParserNode {
-    get nodeType(): EXPRESSION_NODE_TYPE {
-        return "UndefinedValue";
-    }
-}
-
-export class BoolValueNode extends ParserNode {
-    private readonly _value: boolean;
-
-    constructor(value: boolean) {
-        super();
-        this._value = value;
-    }
-
-    get value(): boolean {
-        return this._value;
-    }
-
-    get nodeType(): EXPRESSION_NODE_TYPE {
-        return "BooleanValue";
-    }
-}
-
-export class ArgumentsNode extends ParserNode {
+export class ArgumentsExpressionNode extends ParserNode {
     private readonly _args: ParserNode[];
 
     constructor(args: ParserNode[]) {
@@ -272,7 +233,7 @@ export class ArgumentsNode extends ParserNode {
     }
 }
 
-export class InverseNode extends ParserNode {
+export class InverseExpressionNode extends ParserNode {
     constructor(body: ParserNode) {
         super();
         this.body = body;
@@ -285,7 +246,7 @@ export class InverseNode extends ParserNode {
     }
 }
 
-export class GroupNode extends ParserNode {
+export class GroupExpressionNode extends ParserNode {
     private readonly _bodyNode: ParserNode;
 
     constructor(bodyNode: ParserNode) {
@@ -299,5 +260,104 @@ export class GroupNode extends ParserNode {
 
     get nodeType(): EXPRESSION_NODE_TYPE {
         return "GroupExpression";
+    }
+}
+
+export class NullValueNode extends ParserNode {
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "NullValue";
+    }
+}
+
+export class UndefinedValueNode extends ParserNode {
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "UndefinedValue";
+    }
+}
+
+export class ConstantValueNode extends ParserNode {
+    private readonly _value: string;
+    constructor(value: string) {
+        super();
+        this._value = value;
+    }
+
+    get value(): string {
+        return this._value;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "ConstantValue";
+    }
+}
+
+export class AttributeExistsNode extends ParserNode {
+    private readonly _attribute: ObjectAccessorNode;
+    constructor(accessorExpression: ObjectAccessorNode) {
+        super();
+        this._attribute = accessorExpression;
+    }
+
+    get attribute(): ObjectAccessorNode {
+        return this._attribute;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "AttributeExists";
+    }
+}
+
+export class AttributeNotExistsNode extends ParserNode {
+    private readonly _attribute: ObjectAccessorNode;
+    constructor(accessorExpression: ObjectAccessorNode) {
+        super();
+        this._attribute = accessorExpression;
+    }
+
+    get attribute(): ObjectAccessorNode {
+        return this._attribute;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "AttributeNotExists";
+    }
+}
+
+export class SizeExpressionNode extends ParserNode {
+    private readonly _instanceAccessor: ObjectAccessorNode;
+    constructor(instanceAccessor: ObjectAccessorNode) {
+        super();
+        this._instanceAccessor = instanceAccessor;
+    }
+
+    get instanceAccessor(): ObjectAccessorNode {
+        return this._instanceAccessor;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "Size";
+    }
+}
+
+export class SetWhenNotExistsExpression extends ParserNode {
+    private readonly _memberExistExpr: ParserNode;
+    private readonly _updateExpr: ParserNode;
+
+    constructor(memberExistExpr: ParserNode, updateExpr: ParserNode) {
+        super();
+        this._memberExistExpr = memberExistExpr;
+        this._updateExpr = updateExpr;
+    }
+
+    get conditionExpression(): ParserNode {
+        return this._memberExistExpr;
+    }
+
+    get updateExpression(): ParserNode {
+        return this._updateExpr;
+    }
+
+    get nodeType(): EXPRESSION_NODE_TYPE {
+        return "SetWhenNotExists";
     }
 }

@@ -1,41 +1,40 @@
 import {ClockRecord} from "./models";
-import FilterExpressionParser from "../parser/filterExpressionParser";
+import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import assert from "assert";
 import {
-    BooleanOperationNode,
-    CompareOperationNode,
-    FunctionNode,
-    GroupNode,
-    InverseNode,
+    BooleanExpressionNode,
+    CompareExpressionNode,
+    FunctionExpressionNode,
+    GroupExpressionNode,
+    InverseExpressionNode,
     LambdaExpressionNode,
-    NumberValueNode,
     ObjectAccessorNode,
-    StringValueNode
+    ConstantValueNode
 } from "../parser/nodes";
 
 test('Must understand inverse', () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
     const predicateString = "x => x.brand.startsWith(\"Fos\") || !Object.hasOwnProperty(x.brand)";
     const tokens = lexer.tokenize(predicateString);
     const expression = parser.parse(predicateString, tokens);
 })
 test('Must parse a non-lambda expression', () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
     const predicateString = "brand && brand.startsWith(\"Fos\") || !!brand";
     const tokens = lexer.tokenize(predicateString);
     const expression = parser.parse(predicateString, tokens);
-    const expected = new BooleanOperationNode(
-        'Or',
-        new BooleanOperationNode(
-            'And',
+    const expected = new BooleanExpressionNode(
+        'OR',
+        new BooleanExpressionNode(
+            'AND',
             new ObjectAccessorNode('brand'),
-            new FunctionNode('startsWith', new ObjectAccessorNode('brand'), new StringValueNode('"Fos"', true))
+            new FunctionExpressionNode('startsWith', new ObjectAccessorNode('brand'), new ConstantValueNode('Fos'))
         ),
-        new InverseNode(
-            new InverseNode(
+        new InverseExpressionNode(
+            new InverseExpressionNode(
                 new ObjectAccessorNode('brand')
             )
         ));
@@ -46,43 +45,43 @@ test('Must parse a non-lambda expression', () => {
 
 test('Must build AST tree for grouped expression with a function', () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => (x.brand && x.brand.startsWith("Fos") || x.brand.length === 1) || x.clockType === 'Analog' && !!x.brand;
     const predicateString = predicate.toString();
     const tokens = lexer.tokenize(predicateString);
     const lambda = parser.parse(predicateString, tokens);
     const expectedLambda = new LambdaExpressionNode(
         new ObjectAccessorNode('x'),
-        new BooleanOperationNode(
-            'Or',
-            new GroupNode(
-                new BooleanOperationNode(
-                    'Or',
-                    new BooleanOperationNode(
-                        'And',
+        new BooleanExpressionNode(
+            'OR',
+            new GroupExpressionNode(
+                new BooleanExpressionNode(
+                    'OR',
+                    new BooleanExpressionNode(
+                        'AND',
                         new ObjectAccessorNode('x.brand'),
-                        new FunctionNode(
+                        new FunctionExpressionNode(
                             'startsWith',
                             new ObjectAccessorNode('x.brand'),
-                            new StringValueNode(`"Fos"`, true)
+                            new ConstantValueNode(`Fos`)
                         ),
                     ),
-                    new CompareOperationNode(
+                    new CompareExpressionNode(
                         'Equals',
                         new ObjectAccessorNode('x.brand.length'),
-                        new NumberValueNode(1)
+                        new ConstantValueNode('1')
                     )
                 )
             ), // x.clockType === 'Analog' && !!x.brand
-            new BooleanOperationNode(
-                'And',
-                new CompareOperationNode(
+            new BooleanExpressionNode(
+                'AND',
+                new CompareExpressionNode(
                     'Equals',
                     new ObjectAccessorNode('x.clockType'),
-                    new StringValueNode(`'Analog'`, true)
+                    new ConstantValueNode(`Analog`)
                 ),
-                new InverseNode(
-                    new InverseNode(
+                new InverseExpressionNode(
+                    new InverseExpressionNode(
                         new ObjectAccessorNode('x.brand')
                     )
                 )
@@ -97,31 +96,31 @@ test('Must build AST tree for grouped expression with a function', () => {
 
 test('Must build AST tree for ungrouped AND and OR expression', () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => x.brand === 'Fossil' && x.totalSegments === 24 || x.clockType === 'Analog';
     const predicateString = predicate.toString();
     const tokens = lexer.tokenize(predicateString);
     const lambda = parser.parse(predicateString, tokens);
     const expectedLambda = new LambdaExpressionNode(
         new ObjectAccessorNode('x'),
-        new BooleanOperationNode(
-            'Or',
-            new BooleanOperationNode(
-                'And',
-                new CompareOperationNode(
+        new BooleanExpressionNode(
+            'OR',
+            new BooleanExpressionNode(
+                'AND',
+                new CompareExpressionNode(
                     'Equals',
                     new ObjectAccessorNode('x.brand'),
-                    new StringValueNode(`'Fossil'`, true)
+                    new ConstantValueNode(`Fossil`)
                 ),
-                new CompareOperationNode(
+                new CompareExpressionNode(
                     'Equals',
                     new ObjectAccessorNode('x.totalSegments'),
-                    new NumberValueNode(24))
+                    new ConstantValueNode('24'))
             ),
-            new CompareOperationNode(
+            new CompareExpressionNode(
                 'Equals',
                 new ObjectAccessorNode('x.clockType'),
-                new StringValueNode(`'Analog'`, true)
+                new ConstantValueNode(`Analog`)
             )
         ));
 
@@ -132,31 +131,31 @@ test('Must build AST tree for ungrouped AND and OR expression', () => {
 
 test('Must build AST tree for ungrouped OR and AND expression', () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => x.brand === 'Fossil' || x.totalSegments === 24 && x.clockType === 'Analog';
     const predicateString = predicate.toString();
     const tokens = lexer.tokenize(predicateString);
     const lambda = parser.parse(predicateString, tokens);
     const expectedExpr = new LambdaExpressionNode(
         new ObjectAccessorNode('x'),
-        new BooleanOperationNode(
-            'Or',
-            new CompareOperationNode(
+        new BooleanExpressionNode(
+            'OR',
+            new CompareExpressionNode(
                 'Equals',
                 new ObjectAccessorNode('x.brand'),
-                new StringValueNode(`'Fossil'`, true)
+                new ConstantValueNode(`Fossil`)
             ),
-            new BooleanOperationNode(
-                'And',
-                new CompareOperationNode(
+            new BooleanExpressionNode(
+                'AND',
+                new CompareExpressionNode(
                     'Equals',
                     new ObjectAccessorNode('x.totalSegments'),
-                    new NumberValueNode(24)
+                    new ConstantValueNode('24')
                 ),
-                new CompareOperationNode(
+                new CompareExpressionNode(
                     'Equals',
                     new ObjectAccessorNode('x.clockType'),
-                    new StringValueNode(`'Analog'`, true)
+                    new ConstantValueNode(`Analog`)
                 )
             )
         )
@@ -169,7 +168,7 @@ test('Must build AST tree for ungrouped OR and AND expression', () => {
 
 test('Must build AST tree for multiple group expressions', () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => x.brand === 'Fossil' ||
         (
             (x.totalSegments === 24 || x.clockType === 'Analog') && (x.clockType === 'Unknown' || x.totalSegments === 12)
@@ -179,37 +178,37 @@ test('Must build AST tree for multiple group expressions', () => {
     const lambda = parser.parse(predicateString, tokens);
     const expectedTree = new LambdaExpressionNode(
         new ObjectAccessorNode("x"),
-        new BooleanOperationNode('Or',
-            new CompareOperationNode('Equals', new ObjectAccessorNode('x.brand'), new StringValueNode(`'Fossil'`, true)),
-            new GroupNode(
-                new BooleanOperationNode('And',
-                    new GroupNode(
-                        new BooleanOperationNode(
-                            'Or',
-                            new CompareOperationNode(
+        new BooleanExpressionNode('OR',
+            new CompareExpressionNode('Equals', new ObjectAccessorNode('x.brand'), new ConstantValueNode(`Fossil`)),
+            new GroupExpressionNode(
+                new BooleanExpressionNode('AND',
+                    new GroupExpressionNode(
+                        new BooleanExpressionNode(
+                            'OR',
+                            new CompareExpressionNode(
                                 'Equals',
                                 new ObjectAccessorNode('x.totalSegments'),
-                                new NumberValueNode(24)
+                                new ConstantValueNode('24')
                             ),
-                            new CompareOperationNode(
+                            new CompareExpressionNode(
                                 'Equals',
                                 new ObjectAccessorNode('x.clockType'),
-                                new StringValueNode(`'Analog'`, true)
+                                new ConstantValueNode(`Analog`)
                             )
                         )
                     ),
-                    new GroupNode(
-                        new BooleanOperationNode(
-                            'Or',
-                            new CompareOperationNode(
+                    new GroupExpressionNode(
+                        new BooleanExpressionNode(
+                            'OR',
+                            new CompareExpressionNode(
                                 'Equals',
                                 new ObjectAccessorNode('x.clockType'),
-                                new StringValueNode(`'Unknown'`, true)
+                                new ConstantValueNode(`Unknown`)
                             ),
-                            new CompareOperationNode(
+                            new CompareExpressionNode(
                                 'Equals',
                                 new ObjectAccessorNode('x.totalSegments'),
-                                new NumberValueNode(12)
+                                new ConstantValueNode('12')
                             )
                         )
                     )
@@ -222,7 +221,7 @@ test('Must build AST tree for multiple group expressions', () => {
 
 test("Must parse simple inverse group node", () => {
     const lexer = LambdaPredicateLexer.Instance;
-    const parser = FilterExpressionParser.Instance;
+    const parser = WhereCauseExpressionParser.Instance;
 
     const predicate: (value: ClockRecord) => boolean = x => !x.brand.startsWith(x.clockModel) || x.clockType === "Analog";
     const predicateString = predicate.toString();

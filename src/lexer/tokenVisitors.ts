@@ -13,15 +13,29 @@ export class ObjectTokenVisitor implements TokenVisitor {
             return index + 1;
         }
 
-        if (ObjectTokenVisitor._literalStartRegex.test(query[index])) {
-            let endIndex = index + 1;
+        let positionOffset = 0
+        for(let i = 0; i < 3; i++) {
+            if (index + i >= query.length || query[index + i] !== '.') {
+                positionOffset = 0;
+                break;
+            }
+
+            positionOffset++;
+        }
+
+        if (ObjectTokenVisitor._literalStartRegex.test(query[index + positionOffset])) {
+            let endIndex = positionOffset + index + 1;
             while (endIndex < query.length && ObjectTokenVisitor._literalRegex.test(query[endIndex])) {
                 endIndex++;
             }
 
-            const value = query.slice(index, endIndex);
+            const value = query.slice(positionOffset + index, endIndex);
             switch (value) {
                 case "null": {
+                    if (positionOffset !== 0) {
+                        throw Error('Spread operator is not supported with the null-value');
+                    }
+
                     tokens.push({
                         tokenType: "NullValue",
                         index: index,
@@ -31,6 +45,10 @@ export class ObjectTokenVisitor implements TokenVisitor {
                 }
 
                 case "undefined": {
+                    if (positionOffset !== 0) {
+                        throw Error('Spread operator is not supported with the undefined-value');
+                    }
+
                     tokens.push({
                         tokenType: "Undefined",
                         index: index,
@@ -38,6 +56,7 @@ export class ObjectTokenVisitor implements TokenVisitor {
                     });
                     break;
                 }
+
                 default: {
                     tokens.push({
                         tokenType: "Object",
@@ -69,9 +88,36 @@ export class CommaTokenVisitor implements TokenVisitor {
     }
 }
 
+export class BooleanValueTokenVisitor implements TokenVisitor {
+
+    visit(query: string, index: number, tokens: QueryToken[]): number {
+        let endIndex = index;
+        let length = 0;
+        if (index + 'true'.length <= query.length && query.slice(index, index + 'true'.length) === 'true') {
+            length = 'true'.length;
+        }
+        else if (index + 'false'.length <= query.length && query.slice(index, index + 'false'.length) === 'false') {
+            length = 'false'.length;
+        }
+
+        if (length != 0) {
+            tokens.push({
+                tokenType: "ConstantValue",
+                index: index,
+                length: length
+            });
+
+            endIndex = index + length;
+        }
+
+        return endIndex;
+    }
+}
+
 export class StringTokenVisitor implements TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number {
         let endIndex = index;
+        let isEnclosed = false;
         if (query[index] === `'` || query[index] === '`' || query[index] === '"') {
             const closeStringChar = query[index];
             let escape = false;
@@ -88,16 +134,21 @@ export class StringTokenVisitor implements TokenVisitor {
                 }
 
                 if (nextChar === closeStringChar) {
-                    endIndex++;
+                    isEnclosed = true;
                     break;
                 }
             }
 
+            if (!isEnclosed) {
+                throw Error(`Enclosing quote was expected`);
+            }
+
             tokens.push({
-                tokenType: "String",
-                index: index,
-                length: endIndex - index
+                tokenType: "ConstantValue",
+                index: index + 1,
+                length: endIndex - index - 1
             });
+            endIndex++;
         }
 
         return endIndex;
@@ -117,7 +168,7 @@ export class NumberTokenVisitor implements TokenVisitor {
             }
 
             tokens.push({
-                tokenType: "Number",
+                tokenType: "ConstantValue",
                 index: index,
                 length: endIndex - index
             });
@@ -151,7 +202,7 @@ export class LogicalOperatorTokenVisitor implements TokenVisitor {
     visit(query: string, index: number, tokens: QueryToken[]): number {
         if (query.slice(index, index + 2) === '||' || query.slice(index, index + 2) === '&&') {
             tokens.push({
-                tokenType: query[index] === '|' ? 'Or' : 'And',
+                tokenType: query[index] === '|' ? 'OR' : 'AND',
                 index: index,
                 length: 2
             });

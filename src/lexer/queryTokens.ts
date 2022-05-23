@@ -2,8 +2,8 @@ import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
 type TokenType = 'GroupStart' | 'GroupEnd' | 'LambdaInitializer' | 'CommaSeparator'
     | 'Object' | 'Inverse' | 'Assign' | "MathOperator"
-    | 'String' | 'Number' | 'Boolean' | 'NullValue' | 'Undefined'
-    | 'Or' | 'And'
+    | 'ConstantValue' | 'NullValue' | 'Undefined'
+    | 'OR' | 'AND'
     | 'Terminator';
 export type TOKEN_TYPE = TokenType | COMPARE_OPERATOR_TYPE;
 

@@ -1,11 +1,11 @@
 import {DynamoDBRecord, DynamoDBRecordIndexBase} from "../records/record";
-import {DynamoDBListQueryBuilder, ListQueryBuilder} from "./listQueryBuilder";
+import {DynamoDBListQueryBuilder, ListQueryBuilder} from "../builders/listQueryBuilder";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBClientResolver} from "./dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBUpdateBuilder, UpdateBuilder} from "./updateBuilder";
-import {DeleteBuilder} from "./deleteBuilder";
-import {DynamoDBPutBuilder, PutBuilder} from "./putBuilder";
+import {DynamoDBUpdateBuilder, UpdateBuilder} from "../builders/updateBuilder";
+import {DeleteBuilder} from "../builders/deleteBuilder";
+import {DynamoDBPutBuilder, PutBuilder} from "../builders/putBuilder";
 
 export interface DatabaseService {
     query<TRecord extends DynamoDBRecord>(query: DynamoDBRecordIndexBase<TRecord>): ListQueryBuilder<TRecord>;

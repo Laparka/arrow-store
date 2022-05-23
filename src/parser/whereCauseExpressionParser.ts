@@ -1,18 +1,15 @@
 import {QueryToken, TOKEN_TYPE} from "../lexer/queryTokens";
 import {
-    ArgumentsNode,
-    BooleanOperationNode,
-    BoolValueNode,
-    CompareOperationNode,
-    FunctionNode,
-    GroupNode,
-    InverseNode,
+    ArgumentsExpressionNode,
+    BooleanExpressionNode,
+    CompareExpressionNode, ConstantValueNode,
+    FunctionExpressionNode,
+    GroupExpressionNode,
+    InverseExpressionNode,
     LambdaExpressionNode,
     NullValueNode,
-    NumberValueNode,
     ObjectAccessorNode,
     ParserNode,
-    StringValueNode,
     UndefinedValueNode
 } from "./nodes";
 import {COMPARE_OPERATOR_TYPE} from "../records/record";
@@ -20,8 +17,8 @@ import {ExpressionParser, NodeExpressionIterator} from "./expressionParser";
 
 const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterThanOrEquals', 'LessThan', 'LessThanOrEquals'];
 
-export default class FilterExpressionParser implements ExpressionParser {
-    public static readonly Instance: FilterExpressionParser = new FilterExpressionParser();
+export default class WhereCauseExpressionParser implements ExpressionParser {
+    public static readonly Instance: WhereCauseExpressionParser = new WhereCauseExpressionParser();
 
     private constructor() {
     }
@@ -46,10 +43,10 @@ export default class FilterExpressionParser implements ExpressionParser {
     private _or(iterator: NodeExpressionIterator): ParserNode {
         const left = this._and(iterator);
         const token = iterator.getCurrentToken();
-        if (token.tokenType === 'Or') {
+        if (token.tokenType === 'OR') {
             iterator.index++;
             const right = this._or(iterator);
-            return new BooleanOperationNode('Or', left, right)
+            return new BooleanExpressionNode('OR', left, right)
         }
 
         return left;
@@ -58,10 +55,10 @@ export default class FilterExpressionParser implements ExpressionParser {
     private _and(iterator: NodeExpressionIterator): ParserNode {
         const left = this._compare(iterator);
         const token = iterator.getCurrentToken();
-        if (token.tokenType === 'And') {
+        if (token.tokenType === 'AND') {
             iterator.index++;
             const right = this._and(iterator);
-            return new BooleanOperationNode('And', left, right)
+            return new BooleanExpressionNode('AND', left, right)
         }
 
         return left;
@@ -73,7 +70,7 @@ export default class FilterExpressionParser implements ExpressionParser {
         if (_comparisonTokens.findIndex(x => x === token.tokenType) >= 0) {
             iterator.index++;
             const right = this._compare(iterator);
-            return new CompareOperationNode(<COMPARE_OPERATOR_TYPE>token.tokenType, left, right);
+            return new CompareExpressionNode(<COMPARE_OPERATOR_TYPE>token.tokenType, left, right);
         }
 
         return left;
@@ -85,8 +82,8 @@ export default class FilterExpressionParser implements ExpressionParser {
         if (token.tokenType === "CommaSeparator") {
             iterator.index++;
             const rightArgs = this._argument(iterator);
-            const leftArgs = left.nodeType === "Arguments" ? (<ArgumentsNode>left).args : [left];
-            return new ArgumentsNode([...leftArgs, rightArgs]);
+            const leftArgs = left.nodeType === "Arguments" ? (<ArgumentsExpressionNode>left).args : [left];
+            return new ArgumentsExpressionNode([...leftArgs, rightArgs]);
         }
 
         return left;
@@ -107,7 +104,7 @@ export default class FilterExpressionParser implements ExpressionParser {
             const memberSegments = (<ObjectAccessorNode>left).value.split('.');
             const functionName = memberSegments[memberSegments.length - 1];
             const instanceAccessorNode = new ObjectAccessorNode(memberSegments.slice(0, memberSegments.length - 1).join('.'))
-            return new FunctionNode(functionName, instanceAccessorNode, argumentsNode)
+            return new FunctionExpressionNode(functionName, instanceAccessorNode, argumentsNode)
         }
 
         return left;
@@ -131,21 +128,9 @@ export default class FilterExpressionParser implements ExpressionParser {
                 return new NullValueNode();
             }
 
-            case "Boolean": {
+            case "ConstantValue": {
                 iterator.index++;
-                return new BoolValueNode(iterator.stringify(token) === "true");
-            }
-
-            case "String": {
-                iterator.index++;
-                const value = iterator.stringify(token);
-                const isEnquote = value.length >= 2 && value[0] === value[value.length - 1] && (value[0] === '`' || value[0] === `'` || value[0] === '"');
-                return new StringValueNode(value, isEnquote);
-            }
-
-            case "Number": {
-                iterator.index++;
-                return new NumberValueNode(parseFloat(iterator.stringify(token)));
+                return new ConstantValueNode(iterator.stringify(token));
             }
 
             case "Undefined": {
@@ -162,7 +147,7 @@ export default class FilterExpressionParser implements ExpressionParser {
         const token = iterator.getCurrentToken();
         if (token.tokenType === "GroupStart") {
             iterator.index++;
-            const groupNode = new GroupNode(this._lambda(iterator));
+            const groupNode = new GroupExpressionNode(this._lambda(iterator));
             const groupEndToken = iterator.getCurrentToken();
             if (groupEndToken.tokenType !== "GroupEnd") {
                 throw Error(`No closing parenthesis was found for the group expression: ${iterator.stringify(groupEndToken)}`);
@@ -179,7 +164,7 @@ export default class FilterExpressionParser implements ExpressionParser {
         const token = iterator.getCurrentToken();
         if (token.tokenType === "Inverse") {
             iterator.index++;
-            return new InverseNode(this._function(iterator));
+            return new InverseExpressionNode(this._function(iterator));
         }
 
         return null;

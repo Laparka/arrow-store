@@ -1,14 +1,15 @@
 import {DynamoDBRecord} from "../records/record";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBClientResolver} from "./dynamoResolver";
-import {DynamoDBFilterExpressionTransformer} from "../parser/filterExpressionTransformer";
+import {DynamoDBClientResolver} from "../services/dynamoResolver";
+import {WhereCauseExpressionTransformer} from "../transformers/whereCauseExpressionTransformer";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
-import FilterExpressionParser from "../parser/filterExpressionParser";
-import {PutItemInput} from "aws-sdk/clients/dynamodb";
+import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
+import {AttributeValue, PutItemInput} from "aws-sdk/clients/dynamodb";
+import {ExpressionAttribute} from "../transformers/expressionTransformer";
 
 export type PutBuilder<TRecord extends DynamoDBRecord> = {
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord>,
+    when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord>,
     executeAsync(): Promise<boolean>
 };
 
@@ -17,8 +18,11 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
-    private readonly _expressionTransformer: DynamoDBFilterExpressionTransformer;
+    private readonly _expressionTransformer: WhereCauseExpressionTransformer;
     private readonly _conditionExpressions: string[];
+
+    private readonly _attributeNames: Map<string, string>;
+    private readonly _attributeValues: Map<string, AttributeValue>;
 
     constructor(record: TRecord,
                 schemaProvider: DynamoDBSchemaProvider,
@@ -28,11 +32,19 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
-        this._expressionTransformer = new DynamoDBFilterExpressionTransformer("filterParam");
+        this._attributeNames = new Map<string, string>();
+        this._attributeValues = new Map<string, AttributeValue>();
+        const attributeNameAliases = new Map<string, ExpressionAttribute>();
+        const attributeValueAliases = new Map<string, string>();
+        this._expressionTransformer = new WhereCauseExpressionTransformer("attr_name",
+            this._attributeNames,
+            attributeNameAliases,
+            this._attributeValues,
+            attributeValueAliases);
         this._conditionExpressions = [];
     }
 
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord> {
+    when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord> {
         if (!predicate) {
             throw Error(`The where-predicate is missing`);
         }
@@ -44,8 +56,8 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
         const readingSchema = this._schemaProvider.getReadingSchema(this._record.getRecordId().getRecordTypeId());
         const whereString = predicate.toString()
         const tokens = LambdaPredicateLexer.Instance.tokenize(whereString);
-        const expression = FilterExpressionParser.Instance.parse(whereString, tokens);
-        this._conditionExpressions.push(this._expressionTransformer.transform(readingSchema, expression));
+        const expression = WhereCauseExpressionParser.Instance.parse(whereString, tokens);
+        this._conditionExpressions.push(this._expressionTransformer.transform(readingSchema, expression, parametersMap));
         return this;
     }
 
@@ -85,13 +97,33 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
             putRequest.ConditionExpression = this._conditionExpressions.map(condition => `(${condition})`).join(' AND ');
         }
 
-        this._expressionTransformer.getExpressionAttributeValues().forEach((value, key) => {
+        if (this._attributeNames.size > 0) {
+            if (!putRequest.ExpressionAttributeNames) {
+                putRequest.ExpressionAttributeNames = {};
+            }
+
+            let iterator = this._attributeNames.keys();
+            let key = iterator.next();
+            while(!key.done) {
+                const attributeName = key.value;
+                putRequest.ExpressionAttributeNames[this._attributeNames.get(attributeName)!] = attributeName;
+                key = iterator.next();
+            }
+        }
+
+        if (this._attributeValues.size > 0) {
             if (!putRequest.ExpressionAttributeValues) {
                 putRequest.ExpressionAttributeValues = {};
             }
 
-            putRequest.ExpressionAttributeValues[key] = value;
-        });
+            let iterator = this._attributeValues.keys();
+            let key = iterator.next();
+            while(!key.done) {
+                const attributeValueRef = key.value;
+                putRequest.ExpressionAttributeValues[attributeValueRef] = this._attributeValues.get(attributeValueRef)!;
+                key = iterator.next();
+            }
+        }
 
         const putResp = await client.putItem(putRequest).promise()
         return putResp.$response?.httpResponse?.statusCode === 200;

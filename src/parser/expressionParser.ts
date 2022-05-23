@@ -33,6 +33,10 @@ export class NodeExpressionIterator {
             throw Error(`The token length is greater than the query itself. Query:${this.query}, Token: ${token.index}-${token.length}`);
         }
 
+        if (token.length === 0) {
+            return '';
+        }
+
         return this.query.slice(token.index, token.index + token.length);
     }
 }

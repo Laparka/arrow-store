@@ -8,7 +8,8 @@ import {
     NumberTokenVisitor,
     ObjectTokenVisitor,
     StringTokenVisitor,
-    TokenVisitor, MathOperatorTokenVisitor
+    TokenVisitor,
+    MathOperatorTokenVisitor, BooleanValueTokenVisitor
 } from "./tokenVisitors";
 
 export default class LambdaPredicateLexer {
@@ -16,12 +17,13 @@ export default class LambdaPredicateLexer {
         new CompareOperatorVisitor(),
         new MathOperatorTokenVisitor(),
         new GroupTokenVisitor(),
-        new ObjectTokenVisitor(),
         new LogicalOperatorTokenVisitor(),
         new NotTokenVisitor(),
         new NumberTokenVisitor(),
         new StringTokenVisitor(),
-        new CommaTokenVisitor()
+        new BooleanValueTokenVisitor(),
+        new CommaTokenVisitor(),
+        new ObjectTokenVisitor()
     ];
 
     public static readonly Instance: LambdaPredicateLexer = new LambdaPredicateLexer();

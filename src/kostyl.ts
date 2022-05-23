@@ -9,15 +9,15 @@ export * from './mappers/mappingBuilder';
 export * from './mappers/recordMapper';
 export * from './mappers/schemaBuilders';
 
-export * from './parser/filterExpressionTransformer';
+export * from './transformers/whereCauseExpressionTransformer';
 export * from './parser/nodes'
-export * from './parser/filterExpressionParser'
+export * from './parser/whereCauseExpressionParser'
 
 export * from './services/dynamoService';
-export * from './services/listQueryBuilder';
+export * from './builders/listQueryBuilder';
 export * from './services/dynamoResolver';
 
 
 export * from './records/record';
-export {DeleteBuilder} from "./services/deleteBuilder";
-export {PutBuilder} from "./services/putBuilder";
+export {DeleteBuilder} from "./builders/deleteBuilder";
+export {PutBuilder} from "./builders/putBuilder";

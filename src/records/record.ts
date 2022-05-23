@@ -12,33 +12,28 @@ export type FUNCTION_OPERATOR_TYPE = "Contains" | "BeginsWith" | "Exists" | "Not
 
 export type PRIMARY_ATTRIBUTE_TYPE = "Partition" | "Range";
 
-export interface DynamoDBPrimaryKeyExpression extends PrimaryKeyValue {
+export interface PrimaryAttributeValue extends  AttributeDescriptor {
     getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE;
-
     getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
 }
 
-export type PrimaryKeyValue = {
-    getAttributeName(): string,
-    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE,
-    getAttributeValue(): any
+export type AttributeDescriptor = {
+    getAttributeName(): string;
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE;
+    getAttributeValue(): any;
 };
 
 export type PrimaryKeysMap = {
-    partition: PrimaryKeyValue,
-    range: PrimaryKeyValue
+    partition: AttributeDescriptor,
+    range: AttributeDescriptor
 };
 
-export interface DynamoDBRecordIndex {
+export type DynamoDBRecordIndex = {
     getRecordTypeId(): symbol;
-
     getIndexName(): string | undefined;
-
     isConsistentRead(): boolean;
-
     getTableName(): string;
-
-    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression>;
+    getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue>;
 }
 
 export type Ctor<TRecord extends DynamoDBRecord> = new (...args: any[]) => TRecord;
@@ -48,7 +43,7 @@ export abstract class DynamoDBRecordIndexBase<TRecord extends DynamoDBRecord> im
         return undefined;
     }
 
-    abstract getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression>;
+    abstract getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue>;
 
     abstract getRecordTypeId(): symbol;
 
@@ -73,6 +68,5 @@ export abstract class DynamoDBRecordBase<TRecordId extends DynamoDBRecordIndex> 
 
 export type DynamoDBQueryResult<TRecord extends DynamoDBRecord> = {
     lastKey: PrimaryKeysMap | null;
-    total: number;
     records: ReadonlyArray<TRecord>;
 }

@@ -1,7 +1,7 @@
 import {
     COMPARE_OPERATOR_TYPE,
     Ctor,
-    DynamoDBPrimaryKeyExpression,
+    PrimaryAttributeValue,
     DynamoDBRecordBase,
     DynamoDBRecordIndexBase,
     FUNCTION_OPERATOR_TYPE,
@@ -9,7 +9,7 @@ import {
 } from "../records/record";
 import {DYNAMODB_ATTRIBUTE_TYPE} from "../mappers/schemaBuilders";
 
-const tableName: string = "integration-tests";
+const tableName: string = "kostyl-integration-test";
 
 export const RECORD_TYPES = {
     ClockRecord: Symbol.for("ClockRecord")
@@ -23,7 +23,7 @@ export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
         this._clockId = clockId;
     }
 
-    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression> {
+    getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
         return [new PartitionKey('ClockRecord'), new RangeKey(this._clockId)];
     }
 
@@ -86,7 +86,7 @@ export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
 }
 
 export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
-    getPrimaryKeys(): ReadonlyArray<DynamoDBPrimaryKeyExpression> {
+    getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
         return [new PartitionKey('ClockRecord')];
     }
 
@@ -108,7 +108,7 @@ export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
 
 }
 
-export class PartitionKey implements DynamoDBPrimaryKeyExpression {
+export class PartitionKey implements PrimaryAttributeValue {
     private readonly _value: string;
 
     constructor(value: string) {
@@ -136,7 +136,7 @@ export class PartitionKey implements DynamoDBPrimaryKeyExpression {
     }
 }
 
-export class RangeKey implements DynamoDBPrimaryKeyExpression {
+export class RangeKey implements PrimaryAttributeValue {
     private readonly _value: string;
     private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
 

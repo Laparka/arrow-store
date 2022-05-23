@@ -31,7 +31,7 @@ test('Must tokenize the lambda expression', () => {
     const theMostShittyBrand = 'Gar';
     const lexer = LambdaPredicateLexer.Instance;
     const predicate: (value: ClockRecord) => boolean =
-        x => !(x.brand === 'LG' || x.brand === `${theMostShittyBrand}\'ang`) &&
+        x => !(x.brand === 'LG' || x.brand === `${theMostShittyBrand}\'ang` || x.isCertified === false) &&
             ((x.clockType === 'Digital' && x.totalSegments !== 12) || x.clockType === clockType && x.clockModel === 'FTW\'1194' && x.brand === 'Fossil')
     const tokens = lexer.tokenize(predicate.toString());
 
@@ -55,10 +55,10 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Equals');
     assert(tokens[iterate()].length === '==='.length);
 
-    assert(tokens[iterate()].tokenType === 'String');
-    assert(tokens[iterate()].length === `'LG'`.length);
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
+    assert(tokens[iterate()].length === `LG`.length);
 
-    assert(tokens[iterate()].tokenType === 'Or');
+    assert(tokens[iterate()].tokenType === 'OR');
     assert(tokens[iterate()].length === `||`.length);
 
     assert(tokens[iterate()].tokenType === 'Object');
@@ -67,13 +67,25 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Equals');
     assert(tokens[iterate()].length === '==='.length);
 
-    assert(tokens[iterate()].tokenType === 'String');
-    assert(tokens[iterate()].length === '`${theMostShittyBrand}\\\'ang`'.length);
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
+    assert(tokens[iterate()].length === '${theMostShittyBrand}\\\'ang'.length);
+
+    assert(tokens[iterate()].tokenType === 'OR');
+    assert(tokens[iterate()].length === `||`.length);
+
+    assert(tokens[iterate()].tokenType === 'Object');
+    assert(tokens[iterate()].length === 'x.isCertified'.length);
+
+    assert(tokens[iterate()].tokenType === 'Equals');
+    assert(tokens[iterate()].length === '==='.length);
+
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
+    assert(tokens[iterate()].length === 'false'.length);
 
     assert(tokens[iterate()].tokenType === 'GroupEnd');
     assert(tokens[iterate()].length === ')'.length);
 
-    assert(tokens[iterate()].tokenType === 'And');
+    assert(tokens[iterate()].tokenType === 'AND');
     assert(tokens[iterate()].length === `&&`.length);
 
     assert(tokens[iterate()].tokenType === 'GroupStart');
@@ -88,10 +100,10 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Equals');
     assert(tokens[iterate()].length === '==='.length);
 
-    assert(tokens[iterate()].tokenType === 'String');
-    assert(tokens[iterate()].length === `'Digital'`.length);
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
+    assert(tokens[iterate()].length === `Digital`.length);
 
-    assert(tokens[iterate()].tokenType === 'And');
+    assert(tokens[iterate()].tokenType === 'AND');
     assert(tokens[iterate()].length === `&&`.length);
 
     assert(tokens[iterate()].tokenType === 'Object');
@@ -100,13 +112,13 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'NotEquals');
     assert(tokens[iterate()].length === '!=='.length);
 
-    assert(tokens[iterate()].tokenType === 'Number');
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
     assert(tokens[iterate()].length === '12'.length);
 
     assert(tokens[iterate()].tokenType === 'GroupEnd');
     assert(tokens[iterate()].length === ')'.length);
 
-    assert(tokens[iterate()].tokenType === 'Or');
+    assert(tokens[iterate()].tokenType === 'OR');
     assert(tokens[iterate()].length === `||`.length);
 
     assert(tokens[iterate()].tokenType === 'Object');
@@ -118,7 +130,7 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Object');
     assert(tokens[iterate()].length === 'clockType'.length);
 
-    assert(tokens[iterate()].tokenType === 'And');
+    assert(tokens[iterate()].tokenType === 'AND');
     assert(tokens[iterate()].length === `&&`.length);
 
     assert(tokens[iterate()].tokenType === 'Object');
@@ -127,11 +139,11 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Equals');
     assert(tokens[iterate()].length === '==='.length);
 
-    assert(tokens[iterate()].tokenType === 'String');
-    assert(tokens[iterate()].length === `'FTW\\'1194'`.length);
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
+    assert(tokens[iterate()].length === `FTW\\'1194`.length);
 
     // && x.brand === 'Fossil'
-    assert(tokens[iterate()].tokenType === 'And');
+    assert(tokens[iterate()].tokenType === 'AND');
     assert(tokens[iterate()].length === `&&`.length);
 
     assert(tokens[iterate()].tokenType === 'Object');
@@ -140,8 +152,8 @@ test('Must tokenize the lambda expression', () => {
     assert(tokens[iterate()].tokenType === 'Equals');
     assert(tokens[iterate()].length === '==='.length);
 
-    assert(tokens[iterate()].tokenType === 'String');
-    assert(tokens[iterate()].length === `'Fossil'`.length);
+    assert(tokens[iterate()].tokenType === 'ConstantValue');
+    assert(tokens[iterate()].length === `Fossil`.length);
 
     assert(tokens[iterate()].tokenType === 'GroupEnd');
     assert(tokens[iterate()].length === ')'.length);

@@ -1,13 +1,15 @@
 import {ExpressionParser, NodeExpressionIterator} from "./expressionParser";
 import {QueryToken} from "../lexer/queryTokens";
 import {
-    ArgumentsNode,
-    AssignExpressionNode, BoolValueNode, FunctionNode,
-    GroupNode,
+    ArgumentsExpressionNode,
+    AssignExpressionNode, FunctionExpressionNode,
+    GroupExpressionNode,
     LambdaExpressionNode,
-    MathOperationNode, NullValueNode, NumberValueNode, ObjectAccessorNode,
+    MathExpressionNode,
+    NullValueNode,
+    ObjectAccessorNode,
     ParserNode,
-    StringValueNode
+    ConstantValueNode, IncrementExpressionNode
 } from "./nodes";
 
 export default class UpdateExpressionParser implements ExpressionParser {
@@ -59,8 +61,18 @@ export default class UpdateExpressionParser implements ExpressionParser {
         const token = iterator.getCurrentToken();
         if (token.tokenType === "MathOperator") {
             iterator.index++;
+            const operator = iterator.stringify(token);
+            const increment = operator === '+' && iterator.getCurrentToken().tokenType === "Assign";
+            if (increment) {
+                iterator.index++;
+            }
+
             const right = this._math(iterator);
-            return new MathOperationNode(left, right, iterator.stringify(token));
+            if (increment) {
+                return new IncrementExpressionNode(left!, right!);
+            }
+
+            return new MathExpressionNode(left, right, iterator.stringify(token));
         }
 
         return left;
@@ -80,7 +92,7 @@ export default class UpdateExpressionParser implements ExpressionParser {
                 throw Error(`Can't parse the next argument after the ${left.nodeType}`);
             }
 
-            return new ArgumentsNode([left, arg])
+            return new ArgumentsExpressionNode([left, arg])
         }
 
         return left;
@@ -105,7 +117,7 @@ export default class UpdateExpressionParser implements ExpressionParser {
                 return this._toFunction(left, body);
             }
 
-            return new GroupNode(body);
+            return new GroupExpressionNode(body);
         }
 
         if (left === null) {
@@ -119,24 +131,12 @@ export default class UpdateExpressionParser implements ExpressionParser {
         const token = iterator.getCurrentToken();
         let variable: ParserNode;
         switch (token.tokenType) {
-            case "String": {
-                const value = iterator.stringify(token);
-                const isEnquote = value.length >= 2 && value[0] === value[value.length - 1] && (value[0] === '`' || value[0] === `'` || value[0] === '"');
-                variable = new StringValueNode(value, isEnquote);
-                break;
-            }
-            case "Number": {
-                const value = iterator.stringify(token);
-                variable = new NumberValueNode(parseFloat(value));
+            case "ConstantValue": {
+                variable = new ConstantValueNode(iterator.stringify(token));
                 break;
             }
             case "NullValue": {
                 variable = new NullValueNode();
-                break;
-            }
-            case "Boolean": {
-                const value = iterator.stringify(token);
-                variable = new BoolValueNode(value === "true");
                 break;
             }
             case "Object": {
@@ -153,7 +153,7 @@ export default class UpdateExpressionParser implements ExpressionParser {
         return variable;
     }
 
-    private _toFunction(instanceNode: ParserNode, argsNode: ParserNode): FunctionNode {
+    private _toFunction(instanceNode: ParserNode, argsNode: ParserNode): FunctionExpressionNode {
         if (instanceNode.nodeType !== "ObjectAccessor") {
             throw Error(`Function operation can be performed only on instance members. But received ${instanceNode.nodeType}`);
         }
@@ -161,6 +161,6 @@ export default class UpdateExpressionParser implements ExpressionParser {
         const instanceSegments = (<ObjectAccessorNode>instanceNode).value.split('.');
         const instanceName = instanceSegments.slice(0, instanceSegments.length - 1).join('.');
         const functionName = instanceSegments[instanceSegments.length - 1];
-        return new FunctionNode(functionName, new ObjectAccessorNode(instanceName), argsNode);
+        return new FunctionExpressionNode(functionName, new ObjectAccessorNode(instanceName), argsNode);
     }
 }

@@ -20,7 +20,7 @@ export interface PrimaryAttributeValue extends  AttributeDescriptor {
 export type AttributeDescriptor = {
     getAttributeName(): string;
     getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE;
-    getAttributeValue(): any;
+    getAttributeValue(): string;
 };
 
 export type PrimaryKeysMap = {

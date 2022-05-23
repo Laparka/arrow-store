@@ -10,6 +10,7 @@ import {UpdateExpressionTransformer} from "../transformers/updateExpressionTrans
 import {ExpressionAttribute, ExpressionTransformer} from "../transformers/expressionTransformer";
 import {AttributeValue, UpdateItemInput} from "aws-sdk/clients/dynamodb";
 import {SetWhenNotExistsExpression} from "../parser/nodes";
+import {AttributesBuilderBase} from "./attributesBuilderBase";
 
 export type UpdateBuilder<TRecord extends DynamoDBRecord> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): UpdateBuilder<TRecord>,
@@ -19,7 +20,7 @@ export type UpdateBuilder<TRecord extends DynamoDBRecord> = {
     executeAsync(): Promise<boolean>
 };
 
-export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements UpdateBuilder<TRecord> {
+export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> extends AttributesBuilderBase implements UpdateBuilder<TRecord> {
     private readonly _recordId: DynamoDBRecordIndex;
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
@@ -38,6 +39,7 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver)
     {
+        super();
         this._recordId = recordId;
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
@@ -161,33 +163,8 @@ export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements Up
             updateInput.UpdateExpression = updateExp.join(' ');
         }
 
-        if (this._conditionExpressions.length === 1) {
-            updateInput.ConditionExpression = this._conditionExpressions[0];
-        }
-        else if (this._conditionExpressions.length > 1) {
-            updateInput.ConditionExpression = this._conditionExpressions.map(x => `(${x})`).join(' AND ');
-        }
-
-        if (this._attributeNames.size !== 0) {
-            updateInput.ExpressionAttributeNames = {};
-            const iterator = this._attributeNames.keys();
-            let attributeName = iterator.next();
-            while(!attributeName.done) {
-                updateInput.ExpressionAttributeNames[this._attributeNames.get(attributeName.value)!] = attributeName.value;
-                attributeName = iterator.next();
-            }
-        }
-
-        if (this._attributeValues.size !== 0) {
-            updateInput.ExpressionAttributeValues = {};
-            const iterator = this._attributeValues.keys();
-            let attributeValueRef = iterator.next();
-            while(!attributeValueRef.done) {
-                updateInput.ExpressionAttributeValues[attributeValueRef.value] = this._attributeValues.get(attributeValueRef.value)!;
-                attributeValueRef = iterator.next();
-            }
-        }
-
+        updateInput.ConditionExpression = this.joinFilterExpressions(this._conditionExpressions);
+        this.setExpressionAttributes(this._attributeNames, this._attributeValues, updateInput);
         const response = await client.updateItem(updateInput).promise();
         return response?.$response?.httpResponse?.statusCode === 200;
     }

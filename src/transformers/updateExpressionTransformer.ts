@@ -1,4 +1,9 @@
-import {ExpressionAttribute, ExpressionTransformer, TraversalContext} from "./expressionTransformer";
+import {
+    ExpressionAttribute,
+    ExpressionTransformer,
+    ExpressionTransformerBase, ObjectAccessorValue,
+    TraversalContext
+} from "./expressionTransformer";
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {
     ArgumentsExpressionNode, AssignExpressionNode, ConstantValueNode, FunctionExpressionNode,
@@ -9,31 +14,22 @@ import {
 } from "../parser/nodes";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
 
-export class UpdateExpressionTransformer implements ExpressionTransformer {
-    private readonly _attributeNamePrefix: string;
+export class UpdateExpressionTransformer extends ExpressionTransformerBase implements ExpressionTransformer {
     private readonly _attributeNames: Map<string, string>;
     private readonly _attributeNameAliases: Map<string, ExpressionAttribute>;
     private readonly _attributeValues: Map<string, AttributeValue>;
     private readonly _attributeValueAliases: Map<string, string>;
-    private readonly _attributePathSchema: Map<string, DynamoDBAttributeSchema>;
 
     constructor(attributeNamePrefix: string,
                 attributeNames: Map<string, string>,
                 attributeNameAliases: Map<string, ExpressionAttribute>,
                 attributeValues: Map<string, AttributeValue>,
                 attributeValueAliases: Map<string, string>) {
-        if (attributeNamePrefix) {
-            this._attributeNamePrefix = attributeNamePrefix;
-        }
-        else {
-            this._attributeNamePrefix = `attr_name`;
-        }
-
+        super(attributeNamePrefix, new Map<string, DynamoDBAttributeSchema>());
         this._attributeNames = attributeNames;
         this._attributeNameAliases = attributeNameAliases;
         this._attributeValues = attributeValues;
         this._attributeValueAliases = attributeValueAliases;
-        this._attributePathSchema = new Map<string, DynamoDBAttributeSchema>();
     }
 
     transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string {
@@ -145,7 +141,7 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
         }
 
         const memberPath = accessorSegments.join('.');
-        const attributePath = this._getOrSetAttributePath(memberPath, context);
+        const attributePath = this.getOrSetAttributePath(memberPath, context);
         if (!attributePath) {
             throw Error(`Failed to parse the member accessor attributes path`);
         }
@@ -184,30 +180,30 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
     }
 
     private _visitFunction(expression: FunctionExpressionNode, context: TraversalContext): void {
-        const instanceValue = this._getOrSetAttributeReference(expression.instance, context);
+        const instanceValue = this.getOrSetAttributeReference(expression.instance, context);
         switch (expression.functionName) {
             case Array.prototype.concat.name: {
                 if (expression.args.length !== 1) {
                     throw Error(`The concat-function must have one argument`);
                 }
 
-                const argValue = this._getOrSetAttributeReference(expression.args[0], context)
+                const argValue = this.getOrSetAttributeReference(expression.args[0], context)
                 if (argValue.isRecordAccessor) {
-                    const attributeType = this._getAttributeTypeByPath(argValue.value, context);
+                    const attributeType = this.getAttributeTypeByPath(argValue.value, context);
                     if (attributeType !== "L") {
                         throw Error(`The concat-operation is not allowed on ${attributeType}-attribute type. Only L-type is supported`);
                     }
 
-                    const valueRef = this._getOrSetAttributeValue(instanceValue, attributeType, context);
+                    const valueRef = this.getOrSetAttributeValue(instanceValue, attributeType, context);
                     context.stack.push(`list_append(${valueRef}, ${argValue.value})`);
                 }
                 else  if (instanceValue.isRecordAccessor) {
-                    const attributeType = this._getAttributeTypeByPath(instanceValue.value, context);
+                    const attributeType = this.getAttributeTypeByPath(instanceValue.value, context);
                     if (attributeType !== "L") {
                         throw Error(`The concat-operation is not allowed on ${attributeType}-attribute type. Only L-type is supported`);
                     }
 
-                    const valueRef = this._getOrSetAttributeValue(argValue, attributeType, context);
+                    const valueRef = this.getOrSetAttributeValue(argValue, attributeType, context);
                     context.stack.push(`list_append(${instanceValue.value}, ${valueRef})`);
                 }
                 else {
@@ -224,7 +220,7 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
                     throw Error(`The REMOVE-operation must be performed on the record's set-members only`);
                 }
 
-                const instanceAttrType = this._getAttributeTypeByPath(instanceValue.value, context);
+                const instanceAttrType = this.getAttributeTypeByPath(instanceValue.value, context);
                 if (instanceAttrType !== "SS" && instanceAttrType !== "NS" && instanceAttrType !== "L") {
                     throw Error(`The member attribute type is not supported by the REMOVE-operation`);
                 }
@@ -233,10 +229,10 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
                     throw Error(`The splice-operation must contain the start index and the size to delete`);
                 }
 
-                const args = expression.args.map(arg => this._getOrSetAttributeReference(arg, context));
-                const startArg = args[0];
-                const sizeArg = args[1];
-                if (!startArg || !sizeArg || startArg.isRecordAccessor || sizeArg.isRecordAccessor) {
+                const args = expression.args.map(arg => this.getOrSetAttributeReference(arg, context));
+                const startArg: ObjectAccessorValue = args[0];
+                const sizeArg: ObjectAccessorValue = args[1];
+                if (!startArg?.value || !sizeArg?.value || startArg.isRecordAccessor || sizeArg.isRecordAccessor) {
                     throw Error(`The splice-function arguments has invalid integer values`);
                 }
 
@@ -264,24 +260,28 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
                     throw Error(`The ADD-operation on the set-attribute must have values to concat`);
                 }
 
-                const args = expression.args.map(arg => this._getOrSetAttributeReference(arg, context));
-                const instanceAttrType = this._getAttributeTypeByPath(instanceValue.value, context);
+                const args = expression.args.map(arg => this.getOrSetAttributeReference(arg, context));
+                const instanceAttrType = this.getAttributeTypeByPath(instanceValue.value, context);
                 const arrayValues: string[] = [];
                 for(let i = 0; i < args.length; i++) {
                     if (args[i].isRecordAccessor) {
                         throw Error(`Only constant values are allowed in the ADD-operation`);
                     }
 
+                    if (!args[i].value) {
+                        throw Error(`Missing argument value ${args[i].value}`)
+                    }
+
                     try {
-                        const values = JSON.parse(args[i].value);
+                        const values = JSON.parse(args[i].value!);
                         arrayValues.push(...values);
                     }
                     catch {
-                        arrayValues.push(args[i].value);
+                        arrayValues.push(args[i].value!);
                     }
                 }
 
-                const attrValue = this._getOrSetAttributeValue({value: JSON.stringify(arrayValues), isRecordAccessor: false}, instanceAttrType, context);
+                const attrValue = this.getOrSetAttributeValue({value: JSON.stringify(arrayValues), isRecordAccessor: false}, instanceAttrType, context);
                 context.stack.push(`ADD ${instanceValue.value} ${attrValue}`);
                 break;
             }
@@ -289,9 +289,9 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
     }
 
     private _visitConstant(attributePath: string, expression: ConstantValueNode, context: TraversalContext): void {
-        const attributeType = this._getAttributeTypeByPath(attributePath, context);
-        const attributeValue = this._getOrSetAttributeReference(expression, context);
-        context.stack.push(this._getOrSetAttributeValue(attributeValue, attributeType, context));
+        const attributeType = this.getAttributeTypeByPath(attributePath, context);
+        const attributeValue = this.getOrSetAttributeReference(expression, context);
+        context.stack.push(this.getOrSetAttributeValue(attributeValue, attributeType, context));
     }
 
     private _visitContextAccessor(attributePath: string, expression: ObjectAccessorNode, context: TraversalContext): void {
@@ -299,37 +299,37 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
     }
 
     private _visitMath(expression: MathExpressionNode, context: TraversalContext): void {
-        const attributePath = this._getOrSetAttributeReference(expression.left, context);
+        const attributePath = this.getOrSetAttributeReference(expression.left, context);
         if (!attributePath.isRecordAccessor) {
             throw Error(`No attribute path was found for the '${expression.left.nodeType}'-expression`);
         }
 
-        const numericValue = this._getOrSetAttributeReference(expression.right, context);
+        const numericValue = this.getOrSetAttributeReference(expression.right, context);
         if (numericValue.isRecordAccessor) {
             throw Error(`Failed to parse the incrementing value`);
         }
 
-        const attributeValue = this._getOrSetAttributeValue(numericValue, "N", context);
+        const attributeValue = this.getOrSetAttributeValue(numericValue, "N", context);
         context.stack.push([attributePath.value, expression.operator, attributeValue].join(' '));
     }
 
     private _visitIncrement(expression: IncrementExpressionNode, context: TraversalContext): void {
-        const attributePath = this._getOrSetAttributeReference(expression.member, context);
+        const attributePath = this.getOrSetAttributeReference(expression.member, context);
         if (!attributePath.isRecordAccessor) {
             throw Error(`No attribute path was found for the '${expression.member.nodeType}'-expression`);
         }
 
-        const incrementValue = this._getOrSetAttributeReference(expression.incrementValue, context);
+        const incrementValue = this.getOrSetAttributeReference(expression.incrementValue, context);
         if (incrementValue.isRecordAccessor) {
             throw Error(`Failed to parse the incrementing value`);
         }
 
-        const value = parseInt(incrementValue.value);
+        const value = parseInt(incrementValue.value!);
         if (isNaN(value)) {
             throw Error(`Invalid incrementing value: ${incrementValue.value}`);
         }
 
-        const attributeValue = this._getOrSetAttributeValue(incrementValue, "N", context);
+        const attributeValue = this.getOrSetAttributeValue(incrementValue, "N", context);
         context.stack.push(`ADD ${attributePath.value} ${attributeValue}`);
     }
 
@@ -356,220 +356,12 @@ export class UpdateExpressionTransformer implements ExpressionTransformer {
     }
 
     private _visitObjectAccessor(expression: ObjectAccessorNode, context: TraversalContext): void {
-        const attribute = this._getOrSetAttributeReference(expression, context);
+        const attribute = this.getOrSetAttributeReference(expression, context);
         if (attribute.isRecordAccessor) {
-            context.stack.push(attribute.value);
+            context.stack.push(attribute.value!);
         }
         else {
             throw Error(`The accessor must belong to a record's member`);
         }
     }
-
-    private _getOrSetAttributeReference(expression: ParserNode, context: TraversalContext): ObjectAccessorValue {
-        if (expression.nodeType === "ObjectAccessor") {
-            const accessorPath = (<ObjectAccessorNode>expression).value;
-            const segments = accessorPath.split(/[.]/g);
-            while(segments.length !== 0 && !segments[0]) {
-                segments.shift();
-            }
-
-            if (segments[0] === context.rootParameterName) {
-                const attributePath = this._getOrSetAttributePath(segments.slice(1, segments.length).join('.'), context);
-                if (!attributePath) {
-                    throw Error(`Failed to find the member attribute path: '${accessorPath}'`);
-                }
-
-                return {
-                    isRecordAccessor: true,
-                    value: attributePath
-                };
-            }
-
-            if (context.contextParameterName && segments[0] === context.contextParameterName) {
-                return {
-                    value: this._evaluateContextValue(segments.slice(1, segments.length), context.contextParameters),
-                    isRecordAccessor: false
-                };
-            }
-
-            throw Error(`The member accessor must be a record member accessor or a context value accessor`);
-        }
-        else if (expression.nodeType === "ConstantValue") {
-            return {
-                value: (<ConstantValueNode>expression).value,
-                isRecordAccessor: false
-            }
-        }
-
-        throw Error(`Failed to get the expression's value: ${expression.nodeType}`);
-    }
-
-    private _getAttributeTypeByPath(attributePath: string, context: TraversalContext): DYNAMODB_ATTRIBUTE_TYPE {
-        if (!attributePath) {
-            throw Error(`The attribute path is missing`);
-        }
-
-        const schema = this._attributePathSchema.get(attributePath);
-        if (!schema) {
-            throw Error(`The attribute schema was not found for the given path '${attributePath}'`);
-        }
-
-        return schema.lastChildAttributeType;
-    }
-
-    private _getOrSetAttributeValue(accessorValue: ObjectAccessorValue, attributeType: DYNAMODB_ATTRIBUTE_TYPE, context: TraversalContext): string {
-        if (accessorValue.isRecordAccessor) {
-            throw Error(`Only constant or context values are supported`);
-        }
-
-        const value = accessorValue.value;
-        if (value === undefined) {
-            throw Error(`The value is undefined`);
-        }
-
-        let typeRef: string;
-        let attributeValue: AttributeValue = {};
-        if (value === null) {
-            typeRef = "NULL";
-            attributeValue.NULL = true;
-        }
-        else {
-            switch (attributeType) {
-                case "SS": {
-                    const ss = JSON.parse(value);
-                    if (!Array.isArray(ss)) {
-                        throw Error(`The String Set was expected: ${value}`);
-                    }
-
-                    typeRef = `SS${value}`;
-                    attributeValue.SS = ss;
-                    break;
-                }
-
-                case "NS": {
-                    const ns = JSON.parse(value);
-                    if (!Array.isArray(ns)) {
-                        throw Error(`The Numbers Set was expected: ${value}`);
-                    }
-
-                    typeRef = `NS${value}`;
-                    attributeValue.NS = ns;
-                    break;
-                }
-
-                case "S": {
-                    typeRef = `S${value}`;
-                    attributeValue.S = value;
-                    break;
-                }
-
-                case "N": {
-                    typeRef = `N${value}`;
-                    const numberValue = parseFloat(value);
-                    if (isNaN(numberValue)) {
-                        throw Error(`Not a number ${value}`);
-                    }
-
-                    attributeValue.N = value;
-                    break;
-                }
-
-                case "BOOL": {
-                    typeRef = `BOOL${value}`;
-                    if (value === "true") {
-                        attributeValue.BOOL = true;
-                    }
-                    else if (value === "false") {
-                        attributeValue.BOOL = false;
-                    }
-                    else {
-                        throw Error(`Invalid boolean value ${value}`);
-                    }
-
-                    break;
-                }
-
-                default: {
-                    throw Error(`Not supported attribute type ${attributeValue}`);
-                }
-            }
-        }
-
-        let existingAttributeName = context.attributeValueAliases.get(typeRef);
-        if (!existingAttributeName) {
-            existingAttributeName = `:${this._attributeNamePrefix}_${context.attributeValues!.size + 1}`;
-            context.attributeValues!.set(existingAttributeName, attributeValue);
-            context.attributeValueAliases.set(typeRef, existingAttributeName);
-        }
-
-        return existingAttributeName;
-    }
-
-    private _getOrSetAttributePath(memberPath: string, context: TraversalContext): string | null {
-        let attributeNamePath = context.attributeNameAliases.get(memberPath);
-        if (!attributeNamePath) {
-            const memberSchema = context.recordSchema.get(memberPath);
-            if (!memberSchema) {
-                return null;
-            }
-
-            const aliases: string[] = [];
-            let nestedSchema: DynamoDBAttributeSchema | undefined = memberSchema;
-            while (nestedSchema) {
-                const accessorSegments = nestedSchema.attributeName.split(/[.]/g);
-                for (let i = 0; i < accessorSegments.length; i++) {
-                    const attributeName = accessorSegments[i];
-                    let attributeRef = context.attributeNames.get(attributeName);
-                    if (!attributeRef) {
-                        attributeRef = `#${this._attributeNamePrefix}_${context.attributeNames.size}`;
-                        context.attributeNames.set(attributeName, attributeRef);
-                    }
-
-                    aliases.push(attributeRef);
-                }
-
-                nestedSchema = nestedSchema.nested;
-            }
-
-            attributeNamePath = {
-                accessor: aliases.join('.'),
-                schema: memberSchema!
-            };
-
-            context.attributeNameAliases.set(memberPath, attributeNamePath);
-        }
-
-        if (!this._attributePathSchema.get(attributeNamePath.accessor)) {
-            this._attributePathSchema.set(attributeNamePath.accessor, attributeNamePath.schema);
-        }
-
-        return attributeNamePath.accessor;
-    }
-
-    private _evaluateContextValue(accessors: string[], contextParameters: any): string {
-        if (contextParameters === undefined) {
-            throw Error(`Context parameters value is undefined`);
-        }
-
-        if (accessors.length === 0) {
-            if (Array.isArray(contextParameters)) {
-                const array: string[] = [];
-                for(let i in contextParameters) {
-                    array.push(contextParameters[i].toString());
-                }
-
-                return JSON.stringify(array);
-            }
-
-            return contextParameters.toString();
-        }
-
-        contextParameters = contextParameters[accessors[0]];
-        return this._evaluateContextValue(accessors.slice(1, accessors.length), contextParameters);
-    }
 }
-
-type ObjectAccessorValue = {
-    isRecordAccessor: boolean;
-    value: string;
-};

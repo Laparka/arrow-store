@@ -22,7 +22,13 @@ const mappingProfile = new TestMappingProfile();
 mappingProfile.register(mappingBuilder);
 const schemaProvider = mappingBuilder.buildSchemaProvider();
 
-test("Must write clock record to DynamoDB", async () => {
+test("Must get a clock record", async () => {
+    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const record = await dynamoService.getAsync(new ClockRecordId("DW8F1"));
+    assert(!!record);
+});
+
+test("Must put a clock record to DynamoDB", async () => {
     const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const clockRecord = new ClockRecord();
     clockRecord.clockType = "Hybrid";
@@ -42,7 +48,7 @@ test("Must write clock record to DynamoDB", async () => {
     }
     const isSaved = await dynamoService
         .put(clockRecord)
-        .when((x, ctx) => x.totalSegments! > ctx.segments, ctx)
+        .when(x => !!!x.totalSegments)
         .executeAsync();
 });
 
@@ -94,5 +100,13 @@ test("Must update clock record", async () => {
         .update((x, ctx) => x.eligibleInCountries.push(...ctx.countries), params)
         .updateWhenNotExists(x => x.totalSegments, x => x.isCertified = true)
         .destroy(x => x.clockDetails)
+        .executeAsync();
+});
+
+test("Must delete a clock record", async() => {
+    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const removed = await dynamoService
+        .delete(new ClockRecordId("DW8F1"))
+        .when(x => !!x.isCertified)
         .executeAsync();
 });

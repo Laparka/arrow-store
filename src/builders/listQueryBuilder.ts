@@ -15,6 +15,7 @@ import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDB} from "aws-sdk";
 import {ExpressionAttribute, ExpressionTransformer} from "../transformers/expressionTransformer";
+import {AttributesBuilderBase} from "./attributesBuilderBase";
 
 export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
     where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord>,
@@ -25,7 +26,7 @@ export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
     listAsync(): Promise<DynamoDBQueryResult<TRecord>>,
 };
 
-export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements ListQueryBuilder<TRecord> {
+export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends AttributesBuilderBase implements ListQueryBuilder<TRecord> {
     private readonly _recordQuery: DynamoDBRecordIndexBase<TRecord>;
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
@@ -44,6 +45,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver) {
+        super();
         this._recordQuery = recordQuery;
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
@@ -119,40 +121,14 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
             ScanIndexForward: this._scanIndexFwd
         };
 
-        if (this._filterExpressions.length === 1) {
-            queryInput.FilterExpression = this._filterExpressions[0];
-        }
-        else {
-            queryInput.FilterExpression = this._filterExpressions.map(filter => `(${filter})`).join(' AND ');
-        }
-
-        if (this._attributeNames.size !== 0) {
-            queryInput.ExpressionAttributeNames = {};
-            const iterator = this._attributeNames.keys();
-            let attributeName = iterator.next();
-            while(!attributeName.done) {
-                queryInput.ExpressionAttributeNames[this._attributeNames.get(attributeName.value)!] = attributeName.value;
-                attributeName = iterator.next();
-            }
-        }
-
-        if (this._attributeValues.size !== 0) {
-            queryInput.ExpressionAttributeValues = {};
-            const iterator = this._attributeValues.keys();
-            let attributeValueRef = iterator.next();
-            while(!attributeValueRef.done) {
-                queryInput.ExpressionAttributeValues[attributeValueRef.value] = this._attributeValues.get(attributeValueRef.value)!;
-                attributeValueRef = iterator.next();
-            }
-        }
-
+        queryInput.FilterExpression = this.joinFilterExpressions(this._filterExpressions);
+        this.setExpressionAttributes(this._attributeNames, this._attributeValues, queryInput);
         const primaryKeys = this._recordQuery.getPrimaryKeys();
         if (!primaryKeys || primaryKeys.length === 0 || primaryKeys.length > 2) {
             throw Error(`The query attributes are missing`);
         }
 
-        queryInput.KeyConditionExpression = this._toQueryKeyExpression(primaryKeys, queryInput);
-
+        queryInput.KeyConditionExpression = this.toQueryKeyExpression(primaryKeys, queryInput);
         const client = this._clientResolver.resolve();
         let response: QueryOutput | null = null;
         const records: TRecord[] = [];
@@ -177,33 +153,6 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
             lastKey: response ? this._fromLastEvaluatedKey(response.LastEvaluatedKey) : null,
             records: records
         }
-    }
-
-    private _toQueryKeyExpression(primaryKeys: ReadonlyArray<PrimaryAttributeValue>, input: QueryInput): string {
-        const expressions: string[] = [];
-        for (let i = 0; i < primaryKeys.length; i++) {
-            expressions.push(this._toKeyAttributeExpression(primaryKeys[i], input));
-        }
-
-        return expressions.join(' AND ');
-    }
-
-    private _toKeyAttributeExpression(attributeValue: PrimaryAttributeValue, input: QueryInput): string {
-        const attribute: AttributeValue = {};
-        attribute[attributeValue.getAttributeType()] = attributeValue.getAttributeValue();
-        const key = `:${attributeValue.getPrimaryKeyType().toLowerCase()}`;
-        if (!input.ExpressionAttributeValues) {
-            input.ExpressionAttributeValues = {};
-        }
-
-        input.ExpressionAttributeValues[key] = attribute;
-        if (!input.ExpressionAttributeNames) {
-            input.ExpressionAttributeNames = {};
-        }
-
-        const attributeName = `#partition_key_${Object.getOwnPropertyNames(input.ExpressionAttributeNames).length}`;
-        input.ExpressionAttributeNames[attributeName] = attributeValue.getAttributeName();
-        return this._toDynamoDBCompare(attributeName, key, attributeValue.getCompareOperator());
     }
 
     private _fromLastEvaluatedKey(key: DynamoDB.Key | undefined) : PrimaryKeysMap | null {
@@ -235,47 +184,5 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> implements
                 return attributeName;
             }
         };
-    }
-
-    private _toDynamoDBCompare(attributeName: string, value: string, compareOperator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE): string {
-        let operator: string;
-        switch (compareOperator) {
-            case "LessThanOrEquals": {
-                operator = "<=";
-                break;
-            }
-            case "LessThan": {
-                operator = "<";
-                break;
-            }
-            case "GreaterThan": {
-                operator = ">";
-                break;
-            }
-            case "GreaterThanOrEquals": {
-                operator = ">=";
-                break;
-            }
-            case "Equals": {
-                operator = "=";
-                break;
-            }
-            case "NotEquals": {
-                operator = "!=";
-                break;
-            }
-
-            case "BeginsWith": {
-                return `begins_with(${attributeName}, ${value})`;
-            }
-            case "Contains": {
-                return `contains(${attributeName}, ${value})`;
-            }
-            default: {
-                throw Error(`Not supported operator ${compareOperator}`);
-            }
-        }
-
-        return `${attributeName} ${operator} ${value}`;
     }
 }

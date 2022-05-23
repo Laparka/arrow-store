@@ -112,8 +112,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         const key: DynamoDB.Key = {};
         for(let i = 0; i < primaryKeys.length; i++) {
             const attribute = primaryKeys[i];
-            const attributeValue: AttributeValue = {};
-            attributeValue[attribute.getAttributeType()] = attribute.getAttributeValue();
+            const attributeValue = this._toAttributeValue(attribute.getAttributeValue(), attribute.getAttributeType())
             key[attribute.getAttributeName()] = attributeValue;
         }
 
@@ -326,5 +325,32 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
                 break;
             }
         }
+    }
+
+    private _toAttributeValue(value: string, attributeType: DYNAMODB_ATTRIBUTE_TYPE): AttributeValue {
+        if (value === undefined) {
+            throw Error(`The attribute value is missing`);
+        }
+
+        if (value === null) {
+            return {NULL: true};
+        }
+
+        switch (attributeType) {
+            case "S": {
+                return {S: value};
+            }
+
+            case "N": {
+                const num = parseFloat(value);
+                if (isNaN(num)) {
+                    throw Error(`Invalid numeric value ${value}`);
+                }
+
+                return {N: value};
+            }
+        }
+
+        throw Error(`Not supported attribute type for the key attribute values '${attributeType}'`);
     }
 }

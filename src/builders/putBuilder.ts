@@ -7,13 +7,14 @@ import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
 import {AttributeValue, PutItemInput} from "aws-sdk/clients/dynamodb";
 import {ExpressionAttribute} from "../transformers/expressionTransformer";
+import {AttributesBuilderBase} from "./attributesBuilderBase";
 
 export type PutBuilder<TRecord extends DynamoDBRecord> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): PutBuilder<TRecord>,
     executeAsync(): Promise<boolean>
 };
 
-export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBuilder<TRecord> {
+export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> extends AttributesBuilderBase implements PutBuilder<TRecord> {
     private readonly _record: TRecord;
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
@@ -28,6 +29,7 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver) {
+        super();
         this._record = record;
         this._schemaProvider = schemaProvider;
         this._recordMapper = recordMapper;
@@ -90,41 +92,8 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> implements PutBu
             ReturnItemCollectionMetrics: "NONE"
         };
 
-        if (this._conditionExpressions.length === 1) {
-            putRequest.ConditionExpression = this._conditionExpressions[0];
-        }
-        else if (this._conditionExpressions.length > 1) {
-            putRequest.ConditionExpression = this._conditionExpressions.map(condition => `(${condition})`).join(' AND ');
-        }
-
-        if (this._attributeNames.size > 0) {
-            if (!putRequest.ExpressionAttributeNames) {
-                putRequest.ExpressionAttributeNames = {};
-            }
-
-            let iterator = this._attributeNames.keys();
-            let key = iterator.next();
-            while(!key.done) {
-                const attributeName = key.value;
-                putRequest.ExpressionAttributeNames[this._attributeNames.get(attributeName)!] = attributeName;
-                key = iterator.next();
-            }
-        }
-
-        if (this._attributeValues.size > 0) {
-            if (!putRequest.ExpressionAttributeValues) {
-                putRequest.ExpressionAttributeValues = {};
-            }
-
-            let iterator = this._attributeValues.keys();
-            let key = iterator.next();
-            while(!key.done) {
-                const attributeValueRef = key.value;
-                putRequest.ExpressionAttributeValues[attributeValueRef] = this._attributeValues.get(attributeValueRef)!;
-                key = iterator.next();
-            }
-        }
-
+        putRequest.ConditionExpression = this.joinFilterExpressions(this._conditionExpressions);
+        this.setExpressionAttributes(this._attributeNames, this._attributeValues, putRequest);
         const putResp = await client.putItem(putRequest).promise()
         return putResp.$response?.httpResponse?.statusCode === 200;
     }

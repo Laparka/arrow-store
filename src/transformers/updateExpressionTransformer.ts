@@ -4,7 +4,7 @@ import {
     ExpressionTransformerBase, ObjectAccessorValue,
     TraversalContext
 } from "./expressionTransformer";
-import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
+import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {
     ArgumentsExpressionNode, AssignExpressionNode, ConstantValueNode, FunctionExpressionNode,
     GroupExpressionNode, IncrementExpressionNode,
@@ -32,10 +32,10 @@ export class UpdateExpressionTransformer extends ExpressionTransformerBase imple
         this._attributeValueAliases = attributeValueAliases;
     }
 
-    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string {
+    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, context?: any): string {
         const ctx: TraversalContext = {
             stack: [],
-            contextParameters: parametersMap,
+            contextParameters: context,
             recordSchema: recordSchema,
             attributeNames: this._attributeNames,
             attributeNameAliases: this._attributeNameAliases,
@@ -154,11 +154,6 @@ export class UpdateExpressionTransformer extends ExpressionTransformerBase imple
 
             case "ConstantValue": {
                 this._visitConstant(attributePath, <ConstantValueNode>expression.value, context);
-                break;
-            }
-
-            case "ObjectAccessor": {
-                this._visitContextAccessor(attributePath, <ObjectAccessorNode>expression.value, context);
                 break;
             }
 
@@ -292,10 +287,6 @@ export class UpdateExpressionTransformer extends ExpressionTransformerBase imple
         const attributeType = this.getAttributeTypeByPath(attributePath, context);
         const attributeValue = this.getOrSetAttributeReference(expression, context);
         context.stack.push(this.getOrSetAttributeValue(attributeValue, attributeType, context));
-    }
-
-    private _visitContextAccessor(attributePath: string, expression: ObjectAccessorNode, context: TraversalContext): void {
-        throw Error(`Not implemented`);
     }
 
     private _visitMath(expression: MathExpressionNode, context: TraversalContext): void {

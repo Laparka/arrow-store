@@ -70,3 +70,8 @@ export type DynamoDBQueryResult<TRecord extends DynamoDBRecord> = {
     lastKey: PrimaryKeysMap | null;
     records: ReadonlyArray<TRecord>;
 }
+
+export type GetRecordInBatchRequest = {
+    recordId: DynamoDBRecordIndex;
+    record?: DynamoDBRecord
+};

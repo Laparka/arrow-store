@@ -11,6 +11,7 @@ export type DynamoDBRecordMapper = {
     toRecord<TRecord extends DynamoDBRecord>(recordCtor: Ctor<TRecord>, recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
     toAttributeMap<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap;
     toKeyAttribute(primaryKeys: ReadonlyArray<AttributeDescriptor>): DynamoDB.Key;
+    fillRecord(record: DynamoDBRecord, recordTypeId: symbol, itemAttributes: DynamoDB.AttributeMap): void;
 }
 
 export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
@@ -69,12 +70,17 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             throw Error(`The attribute map is missing`)
         }
 
+        const record = new recordCtor();
+        this.fillRecord(record, recordTypeId, attributes);
+        return record;
+    }
+
+    fillRecord(record: DynamoDBRecord, recordTypeId: symbol, itemAttributes: DynamoDB.AttributeMap): void {
         const readingSchema = this._schemaProvider.getReadingSchema(recordTypeId);
         if (!readingSchema) {
             throw Error(`Failed to find a reading schema for the ${Symbol.keyFor(recordTypeId)}`);
         }
 
-        const result = new recordCtor();
         const iterator = readingSchema.entries();
         let anySet = false;
         let schemaEntry = iterator.next();
@@ -86,13 +92,13 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
                 continue;
             }
 
-            const attributeValue = this._findAttributeValueInMap(attributes, attributeSchema);
+            const attributeValue = this._findAttributeValueInMap(itemAttributes, attributeSchema);
             if (!attributeValue) {
                 continue;
             }
 
             const memberNameSegments = memberName.split('.');
-            const targetMember = this._initMembers(result, memberNameSegments);
+            const targetMember = this._initMembers(record, memberNameSegments);
             targetMember[memberNameSegments[memberNameSegments.length - 1]] = this._fromAttributeValue(attributeValue);
             anySet = true;
         }
@@ -100,8 +106,6 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         if (!anySet) {
             throw Error(`None of the record's properties were set while reading from the DynamoDB Item`);
         }
-
-        return result;
     }
 
     toKeyAttribute(primaryKeys: ReadonlyArray<AttributeDescriptor>): DynamoDB.Key {

@@ -37,10 +37,10 @@ export class WhereCauseExpressionTransformer extends ExpressionTransformerBase i
         this._attributeValueAliases = attributeValueAliases;
     }
 
-    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string {
+    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, context?: any): string {
         const ctx: TraversalContext = {
             stack: [],
-            contextParameters: parametersMap,
+            contextParameters: context,
             recordSchema: recordSchema,
             attributeNames: this._attributeNames,
             attributeNameAliases: this._attributeNameAliases,

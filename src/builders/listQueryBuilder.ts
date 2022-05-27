@@ -1,24 +1,25 @@
 import {
-    AttributeDescriptor, COMPARE_OPERATOR_TYPE,
+    AttributeDescriptor,
     DynamoDBQueryResult,
     DynamoDBRecord,
     DynamoDBRecordIndex,
-    DynamoDBRecordIndexBase, FUNCTION_OPERATOR_TYPE,
-    PrimaryAttributeValue, PrimaryKeysMap
+    DynamoDBRecordIndexBase, PrimaryAttributeValue,
+    PrimaryKeysMap
 } from "../records/record";
-import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
-import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
-import {WhereCauseExpressionTransformer} from "../transformers/whereCauseExpressionTransformer";
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {AttributeValue, QueryInput, QueryOutput} from 'aws-sdk/clients/dynamodb'
 import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDB} from "aws-sdk";
-import {ExpressionAttribute, ExpressionTransformer} from "../transformers/expressionTransformer";
-import {AttributesBuilderBase} from "./attributesBuilderBase";
+import {
+    joinFilterExpressions,
+    RequestInput,
+    setExpressionAttributes, toKeyAttributeExpression
+} from "./utils";
+import {WhenExpressionBuilder} from "./batchWriteBuilder";
 
 export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord>,
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): ListQueryBuilder<TRecord>,
     skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord>,
     take(takeRecords: number): ListQueryBuilder<TRecord>,
     sortByAscending(): ListQueryBuilder<TRecord>,
@@ -26,15 +27,9 @@ export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
     listAsync(): Promise<DynamoDBQueryResult<TRecord>>,
 };
 
-export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends AttributesBuilderBase implements ListQueryBuilder<TRecord> {
+export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> implements ListQueryBuilder<TRecord> {
     private readonly _recordQuery: DynamoDBRecordIndexBase<TRecord>;
-    private readonly _schemaProvider: DynamoDBSchemaProvider;
-    private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
-    private readonly _expressionTransformer: ExpressionTransformer;
-
-    private readonly _attributeNames: Map<string, string>;
-    private readonly _attributeValues: Map<string, AttributeValue>;
 
     private readonly _filterExpressions: string[];
     private _scanIndexFwd: boolean = false;
@@ -45,34 +40,19 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends At
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver) {
-        super();
+        super(recordQuery, schemaProvider, recordMapper);
         this._recordQuery = recordQuery;
-        this._schemaProvider = schemaProvider;
-        this._recordMapper = recordMapper;
         this._clientResolver = clientResolver;
 
-        this._attributeNames = new Map<string, string>();
-        this._attributeValues = new Map<string, AttributeValue>();
-        const attributeNameAliases = new Map<string, ExpressionAttribute>();
-        const attributeValueAliases = new Map<string, string>();
-        this._expressionTransformer = new WhereCauseExpressionTransformer("attr_name",
-            this._attributeNames,
-            attributeNameAliases,
-            this._attributeValues,
-            attributeValueAliases);
         this._filterExpressions = [];
     }
 
-    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, parametersMap?: TContext): ListQueryBuilder<TRecord> {
+    where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): ListQueryBuilder<TRecord> {
         if (!predicate) {
             throw Error(`where-clause predicate is missing`);
         }
 
-        const query = predicate.toString();
-        const tokens = LambdaPredicateLexer.Instance.tokenize(query);
-        const expression = WhereCauseExpressionParser.Instance.parse(query, tokens);
-        const readSchema = this._schemaProvider.getReadingSchema(this._recordQuery.getRecordTypeId());
-        this._filterExpressions.push(this._expressionTransformer.transform(readSchema, expression, parametersMap));
+        this._filterExpressions.push(this.toWhereExpression(predicate, context));
         return this;
     }
 
@@ -121,14 +101,14 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends At
             ScanIndexForward: this._scanIndexFwd
         };
 
-        queryInput.FilterExpression = this.joinFilterExpressions(this._filterExpressions);
-        this.setExpressionAttributes(this._attributeNames, this._attributeValues, queryInput);
+        queryInput.FilterExpression = joinFilterExpressions(this._filterExpressions);
+        setExpressionAttributes(this.attributeNames, this.attributeValues, queryInput);
         const primaryKeys = this._recordQuery.getPrimaryKeys();
         if (!primaryKeys || primaryKeys.length === 0 || primaryKeys.length > 2) {
             throw Error(`The query attributes are missing`);
         }
 
-        queryInput.KeyConditionExpression = this.toQueryKeyExpression(primaryKeys, queryInput);
+        queryInput.KeyConditionExpression = this._toQueryKeyExpression(primaryKeys, queryInput);
         const client = this._clientResolver.resolve();
         let response: QueryOutput | null = null;
         const records: TRecord[] = [];
@@ -137,7 +117,9 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends At
             response = await client.query(queryInput).promise();
             if (response.Items && response.Count && response.Count > 0) {
                 response.Items.forEach(attribute => {
-                    records.push(this._recordMapper.toRecord<TRecord>(this._recordQuery.getRecordType(), recordTypeId, attribute));
+                    if (attribute && Object.getOwnPropertyNames(attribute).length === 0) {
+                        records.push(this._recordMapper.toRecord<TRecord>(this._recordQuery.getRecordType(), recordTypeId, attribute));
+                    }
                 });
             }
 
@@ -184,5 +166,14 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends At
                 return attributeName;
             }
         };
+    }
+
+    private _toQueryKeyExpression(primaryKeys: ReadonlyArray<PrimaryAttributeValue>, input: RequestInput): string {
+        const expressions: string[] = [];
+        for (let i = 0; i < primaryKeys.length; i++) {
+            expressions.push(toKeyAttributeExpression(primaryKeys[i], input));
+        }
+
+        return expressions.join(' AND ');
     }
 }

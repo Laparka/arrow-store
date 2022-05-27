@@ -25,7 +25,7 @@ export type ObjectAccessorValue = {
 };
 
 export type ExpressionTransformer = {
-    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string
+    transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, context?: any): string
 };
 
 export abstract class ExpressionTransformerBase implements ExpressionTransformer {
@@ -43,7 +43,7 @@ export abstract class ExpressionTransformerBase implements ExpressionTransformer
         this._attributePathSchema = attributePathSchema;
     }
 
-    abstract transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, parametersMap?: any): string;
+    abstract transform(recordSchema: ReadonlyMap<string, DynamoDBAttributeSchema>, expression: ParserNode, context?: any): string;
 
     protected getOrSetAttributeReference(expression: ParserNode, context: TraversalContext): ObjectAccessorValue {
         if (expression.nodeType === "ObjectAccessor") {

@@ -9,7 +9,7 @@ import {
 } from "../records/record";
 import {DYNAMODB_ATTRIBUTE_TYPE} from "../mappers/schemaBuilders";
 
-const tableName: string = "kostyl-integration-test";
+const tableName: string = "arrow-store-integration-test";
 
 export const RECORD_TYPES = {
     ClockRecord: Symbol.for("ClockRecord")

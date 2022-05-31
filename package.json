@@ -1,9 +1,9 @@
 {
-  "name": "kostyl",
+  "name": "arrow-store",
   "version": "0.0.1",
   "description": "TypeScript DynamoDB ORM",
-  "main": "lib/kostyl.node.cjs.js",
-  "types": "lib/kostyl.d.ts",
+  "main": "lib/arrow-store.node.cjs.js",
+  "types": "lib/arrow-store.d.ts",
   "engines": {
     "node": ">=6.14.6"
   },
@@ -20,12 +20,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Laparka/kostyl.git"
+    "url": "git+https://github.com/Laparka/arrow-store.git"
   },
   "bugs": {
-    "url": "https://github.com/Laparka/kostyl/issues"
+    "url": "https://github.com/Laparka/arrow-store/issues"
   },
-  "homepage": "https://github.com/Laparka/kostyl#readme",
+  "homepage": "https://github.com/Laparka/arrow-store#readme",
   "files": [
     "lib",
     "LICENSE",

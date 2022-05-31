@@ -11,7 +11,7 @@ import {GetRecordInBatchRequest} from "../records/record";
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {
         config.update({region: 'us-west-2'});
-        const credentials = new SharedIniFileCredentials({profile: 'kostyl-integration'});
+        const credentials = new SharedIniFileCredentials({profile: 'arrow-store-integration'});
         config.credentials = credentials;
         const client = new DynamoDB();
         return client;

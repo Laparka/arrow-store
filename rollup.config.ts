@@ -31,11 +31,11 @@ const versionInjection = versionInjector({
     logger: console,
     exclude: []
 })
-const input = './src/kostyl.ts'
+const input = './src/arrow-store.ts'
 
 const nodeCjs = {
     output: [{
-        file: 'lib/kostyl.node.cjs.js',
+        file: 'lib/arrow-store.node.cjs.js',
         format: 'cjs'
     }],
     external: ['path', 'fs'],

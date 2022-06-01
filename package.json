@@ -12,8 +12,11 @@
     "build": "npm run clean && rollup -c rollup.config.ts"
   },
   "keywords": [
-    "dynamodb",
-    "orm",
+    "DynamoDB",
+    "DynamoDB ORM",
+    "ORM",
+    "ORM Framework",
+    "Object-Relational Mapping",
     "typescript"
   ],
   "author": "Marat Sultangareev",

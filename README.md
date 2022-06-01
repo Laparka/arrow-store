@@ -330,7 +330,7 @@ class AppDynamoDBClientResolver implements DynamoDBClientResolver {
 
 export async function getClockRecordAsync(clockModel: string): Promise<ClockRecord | null> {
     const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    const record = await client.getAsync(new ClockRecordId("DW8F1"));
+    const record = await client.getAsync(new ClockRecordId(clockModel));
     return record;
 } 
 ```
@@ -435,7 +435,7 @@ aws dynamodb update-item \
 
 ## DeleteItem
 ```typescript
-export async function deleteItemAsync(clockRecordId: ClockRecordId): Promise {
+export async function deleteItemAsync(clockRecordId: ClockRecordId): Promise<void> {
     const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const removed = await dynamoService
         .delete(clockRecordId)
@@ -489,6 +489,8 @@ export async function queryClockRecordsAsync(): Promise<ClockRecord[]> {
         .query(new ClockRecordsQuery())
         .where(x => x.brand.startsWith("F") && x.regulatory.isDemoVersion && x.regulatory.availableInCountries.includes("USA"))
         .executeAsync();
+    
+    return queryResult.records;
 }
 ```
 
@@ -499,4 +501,46 @@ aws dynamodb query \
   --key-condition-expression 'PartitionKey = :attr_val_0' \
   --filter-expression 'begins_with(RECORD_DATA.BRAND, :attr_val_1 AND RECORD_DATA.REGULATORY.IS_DEMO = :attr_val_2 AND contains(RECORD_DATA.REGULATORY.AVAILABLE_IN_COUNTRIES, :attr_val_3))'
   --expression-attribute-values  '{":attr_val_0":{"S":"ClockRecord"}, ":attr_val_1": {"S": "F"}, ":attr_val_2": {"BOOL": true}, ":attr_val_3": {"S": "USA"}}'
+```
+
+## BatchGetItems
+```typescript
+export async function batchGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
+    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const getRequests: GetRecordInBatchRequest[] = recordIds.map(r => {
+        recordId: r
+    });
+    
+    return await client.batchGetAsync(getRequests);
+}
+```
+In this BatchGetItems example, the DynamoDBService call of batchGetAsync returns the requested records, and also populate the array of GetRecordInBatchRequest with the result per requested ID for convenience.
+
+## BatchWriteItems
+
+```typescript
+import {DynamoDBRecordIndex} from "./record";
+
+export async function batchWriteAsync(putRecord: DynamoDBRecord, deleteRecordId: DynamoDBRecordIndex): Promise<void> {
+    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    await client.batchWriteAsync(query => query.put(record).delete(deleteRecordId));
+}
+```
+
+## TransactWriteItems
+```typescript
+export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecordId: DynamoDBRecordIndex): Promise<void> {
+    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    await client.transactWriteItems("some-idempotency-key")
+        .when(new ClockRecordId("DW"), x => x.clockType === "Digital")
+        .delete(new ClockRecordId("CAS123"), query => query.when(x => !!x.clockType))
+        .put(clockRecord, query => query.when(x => !!x.clockType))
+        .update(new ClockRecordId("UNKNOWN"), updater => {
+            updater
+                .set(x => x.clockType = "Analog")
+                .destroy(x => x.isDemoVersion)
+                .when(x => x.clockType === "Digital");
+        })
+        .executeAsync();
+}
 ```

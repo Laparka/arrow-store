@@ -1,5 +1,5 @@
 import DynamoDBMappingBuilder from "../mappers/mappingBuilder";
-import {TestMappingProfile} from "./testMappingProfile";
+import {ClockRecordSchemaSource, ClockRecordMappingProfile } from "./clockRecordMappingProfile";
 import {ClockRecord, RECORD_TYPES} from "./models";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
 import assert from "assert";
@@ -7,7 +7,7 @@ import {AttributeMap} from "aws-sdk/clients/dynamodb";
 
 test("Must build mapping schema provider", () => {
     const schemaBuilder = new DynamoDBMappingBuilder();
-    const profile = new TestMappingProfile();
+    const profile = new ClockRecordMappingProfile();
     profile.register(schemaBuilder);
     const schemaProvider = schemaBuilder.buildSchemaProvider();
     assert(!!schemaProvider);
@@ -18,7 +18,8 @@ test("Must build mapping schema provider", () => {
 
 test("Must map DynamoDB attribute map to a ClockRecord", () => {
     const schemaBuilder = new DynamoDBMappingBuilder();
-    const profile = new TestMappingProfile();
+    schemaBuilder.use(RECORD_TYPES.ClockRecord, new ClockRecordSchemaSource())
+    const profile = new ClockRecordMappingProfile();
     profile.register(schemaBuilder);
     const schemaProvider = schemaBuilder.buildSchemaProvider();
     const mapper = new DefaultDynamoDBRecordMapper(schemaProvider);

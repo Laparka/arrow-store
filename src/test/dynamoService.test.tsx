@@ -1,6 +1,6 @@
 import {DatabaseService, DynamoDBService} from "../services/dynamoService";
 import {ClockRecord, ClockRecordId, ClocksQuery} from "./models";
-import {TestMappingProfile} from "./testMappingProfile";
+import {ClockRecordMappingProfile} from "./clockRecordMappingProfile";
 import {config, DynamoDB, SharedIniFileCredentials} from "aws-sdk";
 import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
@@ -19,7 +19,7 @@ class AppDynamoDBClientResolver implements DynamoDBClientResolver {
 }
 
 const mappingBuilder = new DynamoDBMappingBuilder();
-const mappingProfile = new TestMappingProfile();
+const mappingProfile = new ClockRecordMappingProfile();
 mappingProfile.register(mappingBuilder);
 const schemaProvider = mappingBuilder.buildSchemaProvider();
 

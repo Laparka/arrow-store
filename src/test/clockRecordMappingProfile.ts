@@ -97,7 +97,7 @@ export class ClockRecordSchemaSource extends DynamoDBRecordSchemaSourceBase<Cloc
     }
 }
 
-export class TestMappingProfile implements DynamoDBMappingProfile {
+export class ClockRecordMappingProfile implements DynamoDBMappingProfile {
     register(builder: MappingBuilder): void {
         builder
             .createReaderFor<ClockRecord>(RECORD_TYPES.ClockRecord)

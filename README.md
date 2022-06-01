@@ -315,6 +315,7 @@ const schemaProvider = schemaBuilder.buildSchemaProvider();
 
 Now, when the schema provider is built, we can use it for the DynamoDBService to write and read data to and from DynamoDB Table
 
+# DynamoDB Requests
 ## GetItem
 With the object defined above, we'll show you how to send a GetItem-request with the ArrowStore DynamoDB Client:
 ```typescript

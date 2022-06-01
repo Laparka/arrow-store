@@ -315,6 +315,7 @@ const schemaProvider = schemaBuilder.buildSchemaProvider();
 
 Now, when the schema provider is built, we can use it for the DynamoDBService to write and read data to and from DynamoDB Table
 
+# DynamoDB Requests
 ## GetItem
 With the object defined above, we'll show you how to send a GetItem-request with the ArrowStore DynamoDB Client:
 ```typescript
@@ -502,7 +503,6 @@ aws dynamodb query \
   --filter-expression 'begins_with(RECORD_DATA.BRAND, :attr_val_1 AND RECORD_DATA.REGULATORY.IS_DEMO = :attr_val_2 AND contains(RECORD_DATA.REGULATORY.AVAILABLE_IN_COUNTRIES, :attr_val_3))'
   --expression-attribute-values  '{":attr_val_0":{"S":"ClockRecord"}, ":attr_val_1": {"S": "F"}, ":attr_val_2": {"BOOL": true}, ":attr_val_3": {"S": "USA"}}'
 ```
-
 ## BatchGetItems
 ```typescript
 export async function batchGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {

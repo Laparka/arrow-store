@@ -63,13 +63,13 @@ test("Must transact write items", async () => {
     await dynamoService
         .transactWriteItems("idk")
         .when(new ClockRecordId("DW"), x => x.clockType === "Digital")
-        .delete(new ClockRecordId("ORC123"), query => query.when(x => !!x.clockType))
-        .put(clockRecord, query => query.when(x => !!x.clockType))
-        .update(new ClockRecordId("UNKNOWN"), query => {
-            query.set(x => x.clockType = "Analog")
-                .destroy(x => x.isCertified)
-                .when(x => x.clockType === "Digital");
-        })
+        .delete(new ClockRecordId("ORC123"), remove => remove.when(x => !!x.clockType))
+        .put(clockRecord, put => put.when(x => !!x.clockType))
+        .update(new ClockRecordId("UNKNOWN"), updater => updater
+            .set(x => x.clockType = "Analog")
+            .destroy(x => x.isCertified)
+            .when(x => x.clockType === "Digital")
+        )
         .executeAsync();
 });
 

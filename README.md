@@ -421,7 +421,7 @@ aws dynamodb update-item \
 }
 ```
 
-The same call outcome but with expanded attribute names and values for a better reading:
+The same call outcome but with expanded attribute names and values for a better readability:
 ```shell
 aws dynamodb update-item \
   --table-name MyDynamoDBTable \
@@ -503,7 +503,7 @@ aws dynamodb query \
   --filter-expression 'begins_with(RECORD_DATA.BRAND, :attr_val_1 AND RECORD_DATA.REGULATORY.IS_DEMO = :attr_val_2 AND contains(RECORD_DATA.REGULATORY.AVAILABLE_IN_COUNTRIES, :attr_val_3))'
   --expression-attribute-values  '{":attr_val_0":{"S":"ClockRecord"}, ":attr_val_1": {"S": "F"}, ":attr_val_2": {"BOOL": true}, ":attr_val_3": {"S": "USA"}}'
 ```
-## BatchGetItems
+## BatchGetItem
 ```typescript
 export async function batchGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
     const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
@@ -516,25 +516,25 @@ export async function batchGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<D
 ```
 In this BatchGetItems example, the DynamoDBService call of batchGetAsync returns the requested records, and also populate the array of GetRecordInBatchRequest with the result per requested ID for convenience.
 
-## BatchWriteItems
+## BatchWriteItem
 
 ```typescript
 import {DynamoDBRecordIndex} from "./record";
 
 export async function batchWriteAsync(putRecord: DynamoDBRecord, deleteRecordId: DynamoDBRecordIndex): Promise<void> {
     const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    await client.batchWriteAsync(query => query.put(record).delete(deleteRecordId));
+    await client.batchWriteAsync(writer => writer.put(record).delete(deleteRecordId));
 }
 ```
 
-## TransactWriteItems
+## TransactWriteItem
 ```typescript
 export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecordId: DynamoDBRecordIndex): Promise<void> {
     const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     await client.transactWriteItems("some-idempotency-key")
         .when(new ClockRecordId("DW"), x => x.clockType === "Digital")
-        .delete(new ClockRecordId("CAS123"), query => query.when(x => !!x.clockType))
-        .put(clockRecord, query => query.when(x => !!x.clockType))
+        .delete(new ClockRecordId("CAS123"), deleteCondition => deleteCondition.when(x => !!x.clockType))
+        .put(clockRecord, putCondition => putCondition.when(x => !!x.clockType))
         .update(new ClockRecordId("UNKNOWN"), updater => {
             updater
                 .set(x => x.clockType = "Analog")
@@ -544,3 +544,28 @@ export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecord
         .executeAsync();
 }
 ```
+
+## TransactGetItem (not implemented yet)
+```typescript
+IN PROGRESS
+```
+#Function Expressions
+| AWS DynamoDB Expression                                                                                                                                     | Arrow Function                                                                                                                                  |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| attribute_exists(_path_)                                                                                                                                    | query => !!query.member<br/>query => !!query.booleanMember                                                                                      |
+| attribute_not_exists(_path_)                                                                                                                                | query => !query.member<br/>query => !!!query.booleanMember                                                                                      |
+| begins_with(_path_, _substr_)                                                                                                                               | query => query.stringMember.startsWith("_substr_")                                                                                              |
+| contains(#string_set_attr, :v_colors)<br/>attributeNames: {<br/>#string_set_attr: "COLORS"<br/>}<br/>attributeValues: {<br/>":v_colors": {"S": "Red"}<br/>} | query => !query.colorsSet.contains("Red")                                                                                                       |
+| contains(#string_attr, :v_sub)<br/>attributeNames: {<br/>#string_attr: "NAME"<br/>}<br/>attributeValues: {<br/>":v_sub": {"S": "the"}<br/>}                 | query => query.stringMember.contains("the")                                                                                                     |
+| size(_path_) = :v_num                                                                                                                                     | query => Checks the string length: ```query.stringMember.length === 10```<br/>Checks the string set size: ```query => query.colorsSet.length === 3``` |
+
+
+#Update Expressions
+| AWS DynamoDB Expression                                                                    | Arrow Function                                                                      |
+|--------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| SET Price = Price - :p<br/>where {":p": {"N": "5"}}                                        | updater => updater.set(x => x.price = x.price - 5)                                  |
+| SET Colors = list_append(Colors, :v_colors)<br/>where {":v_colors": {"L": [{"S": "Red"}]}} | updater => updater.set(x => x.colors = x.colors.concat('Red'))                      |
+| SET Colors = list_append(:v_colors, Colors)<br/>where {":v_colors": {"L": [{"S": "Red"}]}} | updater => updater.set((x, ctx) => x.colors = ctx.additionalColors.concat(x.colors)) |
+| ADD Colors :v_colors<br/>where {":v_colors": {"S": "Red"}}                                 | updater => updater.set(x => x.colors.push("Red")                                    |
+| REMOVE Colors[0], Colors[1]                                                                | updater => updater.set(x => x.colors.splice(0, 1)                                   |
+| DELETE Color :v_colors                                                                     | *IN PROGRESS*                                                                       |

@@ -179,6 +179,10 @@ export class DynamoDBService implements DatabaseService {
         while(response.UnprocessedItems && Object.getOwnPropertyNames(response.UnprocessedItems).length !== 0)
     }
 
+    transactWriteItems(clientRequestToken?: string): TransactWriteBuilder {
+        return new DynamoDBTransactWriteItemBuilder(this._schemaProvider, this._recordMapper, this._clientResolver, clientRequestToken);
+    }
+
     private static _toRecordIdHash(tableName: string, key: Key): string {
         const attributeNames = Object.getOwnPropertyNames(key).sort();
         const segments: string[] = [tableName];
@@ -208,10 +212,6 @@ export class DynamoDBService implements DatabaseService {
         }
 
         return request;
-    }
-
-    transactWriteItems(clientRequestToken?: string): TransactWriteBuilder {
-        return new DynamoDBTransactWriteItemBuilder(this._schemaProvider, this._recordMapper, this._clientResolver, clientRequestToken);
     }
 }
 

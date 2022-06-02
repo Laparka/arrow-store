@@ -3,7 +3,7 @@ import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {ConditionCheck, TransactWriteItemList} from "aws-sdk/clients/dynamodb";
-import {DynamoDBTransactUpdateItemBuilder, DynamoDBUpdateBuilder, TransactUpdateItemBuilder} from "./updateBuilder";
+import {DynamoDBTransactUpdateItemBuilder, TransactUpdateItemBuilder} from "./updateBuilder";
 import {DynamoDBTransactPutItemBuilder, TransactPutItemBuilder} from "./putBuilder";
 import {DynamoDBBatchDeleteItemBuilder, TransactDeleteItemBuilder} from "./deleteBuilder";
 import {WhenExpressionBuilder} from "./batchWriteBuilder";
@@ -14,7 +14,7 @@ export type TransactWriteBuilder = {
     delete<TRecord extends DynamoDBRecord, TContext>(recordId: DynamoDBRecordIndex | DynamoDBRecordIndexBase<TRecord>, deleteBuilder?: (query: TransactDeleteItemBuilder<TRecord>) => void): TransactWriteBuilder;
     update<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndex | DynamoDBRecordIndexBase<TRecord>, updateBuilder: (query: TransactUpdateItemBuilder<TRecord>) => void): TransactWriteBuilder;
     put<TRecord extends DynamoDBRecord, TContext>(record: TRecord, putBuilder?: (query: TransactPutItemBuilder<TRecord>) => void): TransactWriteBuilder;
-    executeAsync(): Promise<void>;
+    executeAsync(): Promise<boolean>;
 };
 
 export class DynamoDBTransactWriteItemBuilder implements TransactWriteBuilder {
@@ -72,6 +72,7 @@ export class DynamoDBTransactWriteItemBuilder implements TransactWriteBuilder {
         this._transactWriteItems.push({
             Update: builder.build()
         });
+
         return this;
     }
 
@@ -88,7 +89,7 @@ export class DynamoDBTransactWriteItemBuilder implements TransactWriteBuilder {
         return this;
     }
 
-    async executeAsync(): Promise<void> {
+    async executeAsync(): Promise<boolean> {
         if (this._transactWriteItems.length === 0) {
             throw Error(`No transactions to execute`);
         }
@@ -100,6 +101,6 @@ export class DynamoDBTransactWriteItemBuilder implements TransactWriteBuilder {
             ReturnItemCollectionMetrics: "NONE",
             ReturnConsumedCapacity: "NONE"
         }).promise();
-        console.log(response);
+        return response.$response?.httpResponse?.statusCode === 200;
     }
-};
+}

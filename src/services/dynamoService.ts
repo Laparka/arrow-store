@@ -14,9 +14,9 @@ import {
     AttributeMap,
     BatchGetItemInput,
     BatchGetItemOutput,
-    BatchGetRequestMap, BatchWriteItemInput, BatchWriteItemOutput,
-    GetItemInput,
-    Key
+    BatchGetRequestMap, BatchWriteItemInput, BatchWriteItemOutput, Get,
+    GetItemInput, ItemResponse,
+    Key, TransactGetItemList, TransactGetItemsInput, TransactGetItemsOutput
 } from "aws-sdk/clients/dynamodb";
 import {
     BatchWriteBuilder,
@@ -32,6 +32,7 @@ export interface DatabaseService {
     delete<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): DeleteBuilder<TRecord>;
     batchGetAsync(getRequests: GetRecordInBatchRequest[]): Promise<DynamoDBRecord[]>;
     batchWriteAsync(param: (query: BatchWriteBuilder) => void): Promise<void>;
+    transactGetItemsAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]>;
     transactWriteItems(clientRequestToken?: string): TransactWriteBuilder;
 }
 
@@ -177,6 +178,50 @@ export class DynamoDBService implements DatabaseService {
             }
         }
         while(response.UnprocessedItems && Object.getOwnPropertyNames(response.UnprocessedItems).length !== 0)
+    }
+
+    async transactGetItemsAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
+        if (!recordIds || recordIds.length === 0) {
+            throw Error(`The recordIds argument is required`);
+        }
+
+        const transactGetRequest: TransactGetItemList = [];
+        for(let i = 0; i < recordIds.length; i++) {
+            const recordId = recordIds[i];
+            const tableName = recordId.getTableName();
+            const primaryKeys = recordId.getPrimaryKeys();
+            const key = this._recordMapper.toKeyAttribute(primaryKeys);
+            transactGetRequest.push({
+                Get: {
+                    Key: key,
+                    TableName: tableName
+                }
+            });
+        }
+
+        const client = this._clientResolver.resolve();
+        const input: TransactGetItemsInput = {
+            TransactItems: transactGetRequest
+        };
+
+        const records: DynamoDBRecord[] = [];
+        let response: TransactGetItemsOutput;
+        response = await client.transactGetItems(input).promise();
+        if (response.Responses) {
+            for(let i = 0; i < response.Responses.length; i++) {
+                const transactResponse = response.Responses[i];
+                if (!transactResponse?.Item) {
+                    continue;
+                }
+
+                const recordId = recordIds[i];
+                const record = new DummyRecord(recordId);
+                this._recordMapper.fillRecord(record, recordId.getRecordTypeId(), transactResponse.Item)
+                records.push(record);
+            }
+        }
+
+        return records;
     }
 
     transactWriteItems(clientRequestToken?: string): TransactWriteBuilder {

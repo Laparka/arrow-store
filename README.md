@@ -1,4 +1,7 @@
 # ArrowStore
+```shell
+npm i arrow-store
+```
 
 ArrowStore is an extensible TypeScript object-relational mapper for AWS DynamoDB that simplifies the DynamoDB API usage for developers.  
 
@@ -16,8 +19,9 @@ The library was created to make it easy for new developers to start working on y
 * The ArrowStore library leverages AWS DynamoDB Low-Level API
 * The ArrowStore's parser reads the ES6 arrow function - it stringifies the arrow function and builds an AST tree. Avoid using syntactic sugar, such as a question mark (?) when checking for an empty value or build an if-else statement. A JS transpiler will expand it to a function with a body and the ArrowStore's engine will not be able to build an AST Tree.
 * No scopes are supported when passing an object's accessor value from a local scope. In the arrow function you must specify an object accessor and pass this object as an argument or use constant values without accessors
-* Projections are not supported yet, since I never needed it
-* Each requested object must have a mapping schema - from and to DynamoDB's AttributeValue. No raw-requests are supported 
+* Each requested object must have a mapping schema - from and to DynamoDB's AttributeValue. No raw-requests are supported
+* Projections are not supported yet and, currently, there are no plans to implement it yet
+* List (L), Binary (B) and Binary Set (BS) attribute values are not supported
 
 ## DynamoDB AttributeValue Mappings
 Consider a JSON object example:
@@ -36,63 +40,34 @@ Consider a JSON object example:
 ```
 The library works with the objects which implement the DynamoDBRecord type:
 ```typescript
-export class PartitionKey implements PrimaryAttributeValue {
-    private readonly _value: string;
+import {DynamoDBRecordBase} from 'arrow-store';
 
-    constructor(value: string) {
-        this._value = value;
-    }
+export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
+    clockType: string;
+    clockModel: string;
+    brand: string;
+    regulatory: ClockDetails;
 
-    getAttributeName(): string {
-        return "PrimaryKey";
-    }
+    protected doGetRecordId(): ClockRecordId {
+        if (!this.clockModel) {
+            throw Error(`The clockModel value is missing`)
+        }
 
-    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
-        return "S";
-    }
-
-    getAttributeValue(): any {
-        return this._value;
-    }
-
-    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
-        return "Equals";
-    }
-
-    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE {
-        return "Partition";
+        return new ClockRecordId(this.clockModel);
     }
 }
 
-export class RangeKey implements PrimaryAttributeValue {
-    private readonly _value: string;
-    private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
-
-    constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE = 'Equals') {
-        this._value = sortValue;
-        this._comparisonOperator = operator;
-    }
-
-    getAttributeName(): string {
-        return "SecondaryKey";
-    }
-
-    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
-        return "S";
-    }
-
-    getAttributeValue(): any {
-        return this._value;
-    }
-
-    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
-        return this._comparisonOperator;
-    }
-
-    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE {
-        return "Range";
-    }
+export type ClockDetails = {
+    availableInCountries: string[];
+    madeUtc: string;
+    partNumber: number;
+    isDemoVersion: boolean;
 }
+```
+
+The RecordId implementation for the given record type
+```typescript
+import {DynamoDBRecordIndexBase, PrimaryAttributeValue, Ctor} from 'arrow-store';
 
 export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
     private readonly _clockId: string;
@@ -133,29 +108,82 @@ export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
     }
 
 }
-export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
-    clockType: string;
-    clockModel: string;
-    brand: string;
-    regulatory: ClockDetails;
+```
+Partition Attribute
+```typescript
+import {PrimaryAttributeValue,
+    DYNAMODB_ATTRIBUTE_TYPE,
+    COMPARE_OPERATOR_TYPE,
+    FUNCTION_OPERATOR_TYPE,
+    PRIMARY_ATTRIBUTE_TYPE} from 'arrow-store';
 
-    protected doGetRecordId(): ClockRecordId {
-        if (!this.clockModel) {
-            throw Error(`The clockModel value is missing`)
-        }
+export class PartitionKey implements PrimaryAttributeValue {
+    private readonly _value: string;
 
-        return new ClockRecordId(this.clockModel);
+    constructor(value: string) {
+        this._value = value;
+    }
+
+    getAttributeName(): string {
+        return "PrimaryKey";
+    }
+
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
+        return "S";
+    }
+
+    getAttributeValue(): any {
+        return this._value;
+    }
+
+    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
+        return "Equals";
+    }
+
+    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE {
+        return "Partition";
     }
 }
+```
 
-export type ClockDetails = {
-    availableInCountries: string[];
-    madeUtc: string;
-    partNumber: number;
-    isDemoVersion: boolean;
+Sort/Range Attribute
+```typescript
+import {PrimaryAttributeValue,
+    DYNAMODB_ATTRIBUTE_TYPE,
+    COMPARE_OPERATOR_TYPE,
+    FUNCTION_OPERATOR_TYPE,
+    PRIMARY_ATTRIBUTE_TYPE} from 'arrow-store';
+
+export class RangeKey implements PrimaryAttributeValue {
+    private readonly _value: string;
+    private readonly _comparisonOperator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE;
+
+    constructor(sortValue: string, operator: COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE = 'Equals') {
+        this._value = sortValue;
+        this._comparisonOperator = operator;
+    }
+
+    getAttributeName(): string {
+        return "SecondaryKey";
+    }
+
+    getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
+        return "S";
+    }
+
+    getAttributeValue(): any {
+        return this._value;
+    }
+
+    getCompareOperator(): COMPARE_OPERATOR_TYPE | FUNCTION_OPERATOR_TYPE {
+        return this._comparisonOperator;
+    }
+
+    getPrimaryKeyType(): PRIMARY_ATTRIBUTE_TYPE {
+        return "Range";
+    }
 }
 ```
-To save to DynamoDB as a set of AttributeValues we need a Partition and Range/Sort key and the rest of attribute values. We can accomplish this by building a writing schema using a schema builder or provide a schema source:
 ### Writing and Reading Schema Builder Example
 In this example, we want to provide a writing mapping schema using a built-in builder.
 First, we create a mapping profile and provide the writing mapping schema:
@@ -545,9 +573,12 @@ export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecord
 }
 ```
 
-## TransactGetItem (not implemented yet)
-```shell
-IN PROGRESS
+## TransactGetItem
+```typescript
+export async function transactGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
+    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    return await client.transactGetItemsAsync(recordIds);
+}
 ```
 ## Function Expressions
 | AWS DynamoDB Expression                                                                                                                                     | Arrow Function                                                                                                                                        |
@@ -555,6 +586,7 @@ IN PROGRESS
 | attribute_exists(_path_)                                                                                                                                    | query => !!query.member<br/>query => !!query.booleanMember                                                                                            |
 | attribute_not_exists(_path_)                                                                                                                                | query => !query.member<br/>query => !!!query.booleanMember                                                                                            |
 | begins_with(_path_, _substr_)                                                                                                                               | query => query.stringMember.startsWith("_substr_")                                                                                                    |
+| not begins_with(_path_, _substr_)                                                                                                                           | query => query.stringMember.startsWith("_substr_")                                                                                                    |
 | contains(#string_set_attr, :v_colors)<br/>attributeNames: {<br/>#string_set_attr: "COLORS"<br/>}<br/>attributeValues: {<br/>":v_colors": {"S": "Red"}<br/>} | query => query.colorsSet.contains("Red")                                                                                                              |
 | contains(#string_attr, :v_sub)<br/>attributeNames: {<br/>#string_attr: "NAME"<br/>}<br/>attributeValues: {<br/>":v_sub": {"S": "the"}<br/>}                 | query => query.stringMember.contains("the")                                                                                                           |
 | size(_path_) = :v_num                                                                                                                                       | query => Checks the string length: ```query.stringMember.length === 10```<br/>Checks the string set size: ```query => query.colorsSet.length === 3``` |

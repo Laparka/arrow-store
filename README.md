@@ -546,26 +546,26 @@ export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecord
 ```
 
 ## TransactGetItem (not implemented yet)
-```typescript
+```shell
 IN PROGRESS
 ```
-#Function Expressions
-| AWS DynamoDB Expression                                                                                                                                     | Arrow Function                                                                                                                                  |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| attribute_exists(_path_)                                                                                                                                    | query => !!query.member<br/>query => !!query.booleanMember                                                                                      |
-| attribute_not_exists(_path_)                                                                                                                                | query => !query.member<br/>query => !!!query.booleanMember                                                                                      |
-| begins_with(_path_, _substr_)                                                                                                                               | query => query.stringMember.startsWith("_substr_")                                                                                              |
-| contains(#string_set_attr, :v_colors)<br/>attributeNames: {<br/>#string_set_attr: "COLORS"<br/>}<br/>attributeValues: {<br/>":v_colors": {"S": "Red"}<br/>} | query => !query.colorsSet.contains("Red")                                                                                                       |
-| contains(#string_attr, :v_sub)<br/>attributeNames: {<br/>#string_attr: "NAME"<br/>}<br/>attributeValues: {<br/>":v_sub": {"S": "the"}<br/>}                 | query => query.stringMember.contains("the")                                                                                                     |
-| size(_path_) = :v_num                                                                                                                                     | query => Checks the string length: ```query.stringMember.length === 10```<br/>Checks the string set size: ```query => query.colorsSet.length === 3``` |
+## Function Expressions
+| AWS DynamoDB Expression                                                                                                                                     | Arrow Function                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| attribute_exists(_path_)                                                                                                                                    | query => !!query.member<br/>query => !!query.booleanMember                                                                                            |
+| attribute_not_exists(_path_)                                                                                                                                | query => !query.member<br/>query => !!!query.booleanMember                                                                                            |
+| begins_with(_path_, _substr_)                                                                                                                               | query => query.stringMember.startsWith("_substr_")                                                                                                    |
+| contains(#string_set_attr, :v_colors)<br/>attributeNames: {<br/>#string_set_attr: "COLORS"<br/>}<br/>attributeValues: {<br/>":v_colors": {"S": "Red"}<br/>} | query => query.colorsSet.contains("Red")                                                                                                              |
+| contains(#string_attr, :v_sub)<br/>attributeNames: {<br/>#string_attr: "NAME"<br/>}<br/>attributeValues: {<br/>":v_sub": {"S": "the"}<br/>}                 | query => query.stringMember.contains("the")                                                                                                           |
+| size(_path_) = :v_num                                                                                                                                       | query => Checks the string length: ```query.stringMember.length === 10```<br/>Checks the string set size: ```query => query.colorsSet.length === 3``` |
 
 
-#Update Expressions
-| AWS DynamoDB Expression                                                                    | Arrow Function                                                                      |
-|--------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| SET Price = Price - :p<br/>where {":p": {"N": "5"}}                                        | updater => updater.set(x => x.price = x.price - 5)                                  |
-| SET Colors = list_append(Colors, :v_colors)<br/>where {":v_colors": {"L": [{"S": "Red"}]}} | updater => updater.set(x => x.colors = x.colors.concat('Red'))                      |
-| SET Colors = list_append(:v_colors, Colors)<br/>where {":v_colors": {"L": [{"S": "Red"}]}} | updater => updater.set((x, ctx) => x.colors = ctx.additionalColors.concat(x.colors)) |
-| ADD Colors :v_colors<br/>where {":v_colors": {"S": "Red"}}                                 | updater => updater.set(x => x.colors.push("Red")                                    |
-| REMOVE Colors[0], Colors[1]                                                                | updater => updater.set(x => x.colors.splice(0, 1)                                   |
-| DELETE Color :v_colors                                                                     | *IN PROGRESS*                                                                       |
+## Update Expressions
+| AWS DynamoDB Expression                                                                    | Arrow Function                                                                        |
+|--------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| SET Price = Price - :p<br/>where {":p": {"N": "5"}}                                        | updater => updater.set(x => x.price = x.price - 5)                                    |
+| SET Colors = list_append(Colors, :v_colors)<br/>where {":v_colors": {"L": [{"S": "Red"}]}} | updater => updater.set(x => x.colors = x.colors.concat('Red'))                        |
+| SET Colors = list_append(:v_colors, Colors)<br/>where {":v_colors": {"L": [{"S": "Red"}]}} | updater => updater.set((x, ctx) => x.colors = ctx.additionalColors.concat(x.colors))  |
+| ADD Colors :v_colors<br/>where {":v_colors": {"S": "Red"}}                                 | updater => updater.set(x => x.colors.push("Red")                                      |
+| REMOVE Colors[0], Colors[1]                                                                | updater => updater.set(x => x.colors.splice(0, 1)                                     |
+| DELETE Color :v_colors                                                                     | *IN PROGRESS*                                                                         |

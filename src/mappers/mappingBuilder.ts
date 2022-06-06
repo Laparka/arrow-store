@@ -1,4 +1,6 @@
 import {
+    DefaultSchemaProvider,
+    DefaultSchemaSource,
     DynamoDBRecordSchemaBuilder,
     DynamoDBRecordSchemaSourceBase,
     DynamoDBSchemaProvider,
@@ -6,8 +8,6 @@ import {
 } from "./schemaBuilders";
 import {DynamoDBRecord} from "../records/record";
 import {AttributeSchemaBuilder} from "./attributeSchemaBuilder";
-import DefaultSchemaSource from "./defaultSchemaSource";
-import {DefaultSchemaProvider} from "./defaultSchemaProvider";
 
 export default class DynamoDBMappingBuilder implements MappingBuilder {
     private readonly _fromAttributeReaders: Map<symbol, DynamoDBRecordSchemaBuilder<any>>;

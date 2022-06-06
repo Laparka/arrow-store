@@ -12,7 +12,7 @@ const treeshake = {
 const tsconfig = {
     tsconfigOverride: {
         include: [ 'src' ],
-        exclude: [ 'src/__tests__', 'benchmark' ],
+        exclude: [ 'src/__tests__', 'src/samples' ],
         compilerOptions: {
             target: 'es6',
             module: 'es6'

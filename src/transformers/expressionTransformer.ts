@@ -1,6 +1,6 @@
-import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {ConstantValueNode, ObjectAccessorNode, ParserNode} from "../parser/nodes";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
+import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 
 export type ExpressionAttribute = {
     accessor: string,

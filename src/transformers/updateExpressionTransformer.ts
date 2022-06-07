@@ -4,7 +4,6 @@ import {
     ExpressionTransformerBase, ObjectAccessorValue,
     TraversalContext
 } from "./expressionTransformer";
-import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {
     ArgumentsExpressionNode, AssignExpressionNode, ConstantValueNode, FunctionExpressionNode,
     GroupExpressionNode, IncrementExpressionNode,
@@ -13,6 +12,7 @@ import {
     ParserNode, SetWhenNotExistsExpression
 } from "../parser/nodes";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
+import {DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 
 export class UpdateExpressionTransformer extends ExpressionTransformerBase implements ExpressionTransformer {
     private readonly _attributeNames: Map<string, string>;

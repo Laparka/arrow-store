@@ -12,8 +12,8 @@ import {
     ParserNode,
     UndefinedValueNode
 } from "./nodes";
-import {COMPARE_OPERATOR_TYPE} from "../records/record";
 import {ExpressionParser, NodeExpressionIterator} from "./expressionParser";
+import {COMPARE_OPERATOR_TYPE} from "../records/record";
 
 const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterThanOrEquals', 'LessThan', 'LessThanOrEquals'];
 

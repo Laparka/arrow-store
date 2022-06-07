@@ -1,4 +1,3 @@
-import {ClockRecord} from "./models";
 import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import assert from "assert";
@@ -12,6 +11,7 @@ import {
     ObjectAccessorNode,
     ConstantValueNode
 } from "../parser/nodes";
+import {ClockRecord} from "./models";
 
 test('Must understand inverse', () => {
     const lexer = LambdaPredicateLexer.Instance;

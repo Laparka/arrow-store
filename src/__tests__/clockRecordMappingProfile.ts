@@ -1,10 +1,10 @@
-import {ClockRecord, RECORD_TYPES} from "./models";
 import {
     DynamoDBAttributeSchema,
     DynamoDBMappingProfile,
     DynamoDBRecordSchemaSourceBase,
     MappingBuilder
 } from "../mappers/schemaBuilders";
+import {ClockRecord, RECORD_TYPES} from "./models";
 
 export class ClockRecordSchemaSource extends DynamoDBRecordSchemaSourceBase<ClockRecord> {
     getWritingSchema(): ReadonlyMap<string, DynamoDBAttributeSchema> {

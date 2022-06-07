@@ -1,11 +1,11 @@
-import {DynamoDBRecord, DynamoDBRecordIndex} from "../records/record";
 import {AttributeValue, BatchWriteItemRequestMap, WriteRequests} from "aws-sdk/clients/dynamodb";
-import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {ExpressionAttribute, ExpressionTransformer} from "../transformers/expressionTransformer";
-import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
 import {WhereCauseExpressionTransformer} from "../transformers/whereCauseExpressionTransformer";
+import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
+import {DynamoDBRecordMapper} from "../mappers/recordMapper";
+import {DynamoDBRecord, DynamoDBRecordIndex} from "../records/record";
 
 export type BatchWriteBuilder = {
     put<TRecord extends DynamoDBRecord>(record: TRecord): BatchWriteBuilder;

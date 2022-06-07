@@ -15,7 +15,7 @@ import {
     BatchGetItemInput,
     BatchGetItemOutput,
     BatchGetRequestMap, BatchWriteItemInput, BatchWriteItemOutput, Get,
-    GetItemInput, ItemResponse,
+    GetItemInput,
     Key, TransactGetItemList, TransactGetItemsInput, TransactGetItemsOutput
 } from "aws-sdk/clients/dynamodb";
 import {

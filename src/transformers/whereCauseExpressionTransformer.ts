@@ -10,7 +10,6 @@ import {
     ObjectAccessorNode,
     ParserNode, SizeExpressionNode
 } from "../parser/nodes";
-import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
 import {
     ExpressionAttribute,
@@ -18,6 +17,7 @@ import {
     ExpressionTransformerBase,
     TraversalContext
 } from "./expressionTransformer";
+import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema} from "../mappers/schemaBuilders";
 
 export class WhereCauseExpressionTransformer extends ExpressionTransformerBase implements ExpressionTransformer {
     private readonly _attributeNames: Map<string, string>;

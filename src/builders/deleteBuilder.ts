@@ -1,24 +1,24 @@
-import {DynamoDBRecord, DynamoDBRecordIndex} from "../records/record";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {Delete, DeleteItemInput} from "aws-sdk/clients/dynamodb";
 import {joinFilterExpressions, setExpressionAttributes} from "./utils";
 import {WhenExpressionBuilder} from "./batchWriteBuilder";
+import {ArrowStoreRecordId} from "../types";
+import {DynamoDBClientResolver} from "../client";
 
-export type TransactDeleteItemBuilder<TRecord extends DynamoDBRecord> = {
+export type TransactDeleteItemBuilder<TRecord extends {}> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): TransactDeleteItemBuilder<TRecord>;
 };
 
-export type DeleteBuilder<TRecord extends DynamoDBRecord> = {
+export type DeleteBuilder<TRecord extends {}> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): DeleteBuilder<TRecord>;
     executeAsync(): Promise<boolean>
 };
 
-export class DynamoDBBatchDeleteItemBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> implements TransactDeleteItemBuilder<TRecord> {
+export class DynamoDBBatchDeleteItemBuilder<TRecord extends {}> extends WhenExpressionBuilder<TRecord> implements TransactDeleteItemBuilder<TRecord> {
     private readonly _conditionExpressions: string[];
 
-    constructor(recordId: DynamoDBRecordIndex,
+    constructor(recordId: ArrowStoreRecordId,
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper) {
         super(recordId, schemaProvider, recordMapper);
@@ -45,11 +45,11 @@ export class DynamoDBBatchDeleteItemBuilder<TRecord extends DynamoDBRecord> exte
 
 }
 
-export class DynamoDBDeleteItemBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> implements DeleteBuilder<TRecord>{
+export class DynamoDBDeleteItemBuilder<TRecord extends {}> extends WhenExpressionBuilder<TRecord> implements DeleteBuilder<TRecord>{
     private readonly _clientResolver: DynamoDBClientResolver;
     private readonly _conditionExpressions: string[];
 
-    constructor(recordId: DynamoDBRecordIndex,
+    constructor(recordId: ArrowStoreRecordId,
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver) {

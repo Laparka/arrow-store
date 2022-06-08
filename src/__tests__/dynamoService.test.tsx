@@ -1,12 +1,10 @@
-import {DatabaseService, DynamoDBService} from "../services/dynamoService";
+import {DynamoDBClient, DefaultDynamoDBClient, DynamoDBClientResolver} from "../client";
 import {ClockRecord, ClockRecordId, ClocksQuery} from "./models";
 import {ClockRecordMappingProfile} from "./clockRecordMappingProfile";
 import {DynamoDB, SharedIniFileCredentials} from "aws-sdk";
-import {DynamoDBClientResolver} from "../services/dynamoResolver";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
 import DynamoDBMappingBuilder from "../mappers/mappingBuilder";
 import assert from "assert";
-import {GetRecordInBatchRequest} from "../records/record";
 
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {
@@ -25,7 +23,7 @@ mappingProfile.register(mappingBuilder);
 const schemaProvider = mappingBuilder.buildSchemaProvider();
 
 test("Must batch write items", async () => {
-    const dynamoService: DatabaseService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService: DynamoDBClient = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const clockRecord = new ClockRecord();
     clockRecord.clockType = "Digital";
     clockRecord.clockModel = "Analo govnet";
@@ -47,7 +45,7 @@ test("Must batch write items", async () => {
 });
 
 test("Must put a clock record to DynamoDB", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const clockRecord = new ClockRecord();
     clockRecord.clockType = "Hybrid";
     clockRecord.clockModel = "DW8F1";
@@ -71,26 +69,20 @@ test("Must put a clock record to DynamoDB", async () => {
 });
 
 test("Must get a clock record", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const record = await dynamoService.getAsync(new ClockRecordId("DW8F1"));
     assert(record);
 });
 
 test("Must get batch items", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    const getRequests: GetRecordInBatchRequest[] = [
-        {
-            recordId: new ClockRecordId("DW8F1")
-        }
-    ];
-    const records = await dynamoService.batchGetAsync(getRequests);
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const records = await dynamoService.batchGetAsync([new ClockRecordId("DW8F1")]);
     assert(records.length !== 0);
-    assert(records[0] === getRequests[0].record);
-    assert(getRequests[0].record['clockModel'] == "DW8F1")
+    assert(records[0]['clockModel'] == "DW8F1")
 });
 
 test("Must query clock records from DynamoDB", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const params = {
         store: 'Amazon'
     };
@@ -105,7 +97,7 @@ test("Must query clock records from DynamoDB", async () => {
 });
 
 test("Must build a complex query", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const params = {
         store: 'Amazon'
     };
@@ -119,7 +111,7 @@ test("Must build a complex query", async () => {
 });
 
 test("Must build a simple query", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const query = dynamoService
         .query(new ClocksQuery())
         .where(x => !x.isCertified)
@@ -129,9 +121,10 @@ test("Must build a simple query", async () => {
 });
 
 test("Must update clock record", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const params = {end: 4, stores: ["Target", "Costco"], countries: ["ITL"], country: "CHN"};
-    const updated = await dynamoService.update(new ClockRecordId("DW8F1"))
+    const updated = await dynamoService
+        .update(new ClockRecordId("DW8F1"))
         .when(x => !!x.totalSegments)
         .set(x => x.totalSegments! += 5)
         .set((x, ctx) => x.eligibleInCountries.push(...ctx.countries), params)
@@ -141,12 +134,12 @@ test("Must update clock record", async () => {
 });
 
 test("Must transact get items", async () => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const records = await dynamoService.transactGetItemsAsync([new ClockRecordId("DW8F1"), new ClockRecordId("Analo govnet"), new ClockRecordId("DW8F2")]);
 });
 
 test("Must delete a clock record", async() => {
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const removed = await dynamoService
         .delete(new ClockRecordId("Analo govnet"))
         .when(x => !!x.isCertified)
@@ -167,7 +160,7 @@ test("Must transact write items", async () => {
         madeIn: "CHN"
     };
 
-    const dynamoService = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     await dynamoService
         .transactWriteItems(`idk-${Math.random()}`)
         .when(new ClockRecordId("DW"), x => !x.clockType || x.clockType === "Digital")

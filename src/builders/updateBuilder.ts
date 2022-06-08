@@ -1,7 +1,6 @@
-import {DynamoDBRecord, DynamoDBRecordIndex} from "../records/record";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBClientResolver} from "../services/dynamoResolver";
+import {DynamoDBClientResolver} from "../client";
 import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
 import UpdateExpressionParser from "../parser/updateExpressionParser";
 import {UpdateExpressionTransformer} from "../transformers/updateExpressionTransformer";
@@ -10,15 +9,16 @@ import {Update, UpdateItemInput} from "aws-sdk/clients/dynamodb";
 import {SetWhenNotExistsExpression} from "../parser/nodes";
 import {joinFilterExpressions, setExpressionAttributes} from "./utils";
 import {WhenExpressionBuilder} from "./batchWriteBuilder";
+import {ArrowStoreRecordId, ArrowStoreTypeRecordId} from "../types";
 
-export type TransactUpdateItemBuilder<TRecord extends DynamoDBRecord> = {
+export type TransactUpdateItemBuilder<TRecord extends {}> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): TransactUpdateItemBuilder<TRecord>,
     set<TContext>(updateExpression: (record: TRecord, context: TContext) => unknown, context?: TContext): TransactUpdateItemBuilder<TRecord>,
     setWhenNotExists<TContext>(member: (record: TRecord) => unknown, updateExpression: (record: TRecord, context: TContext) => unknown, context?: TContext): TransactUpdateItemBuilder<TRecord>,
     destroy<TMember>(expression: (record: TRecord) => TMember): TransactUpdateItemBuilder<TRecord>,
 };
 
-export type UpdateBuilder<TRecord extends DynamoDBRecord> = {
+export type UpdateBuilder<TRecord extends {}> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): UpdateBuilder<TRecord>,
     set<TContext>(updateExpression: (record: TRecord, context: TContext) => unknown, context?: TContext): UpdateBuilder<TRecord>,
     setWhenNotExists<TContext>(member: (record: TRecord) => unknown, updateExpression: (record: TRecord, context: TContext) => unknown, context?: TContext): UpdateBuilder<TRecord>,
@@ -26,11 +26,11 @@ export type UpdateBuilder<TRecord extends DynamoDBRecord> = {
     executeAsync(): Promise<boolean>
 };
 
-class UpdateItemBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> {
+class UpdateItemBuilder<TRecord extends {}> extends WhenExpressionBuilder<TRecord> {
     private readonly _updateTransformer: ExpressionTransformer;
     private readonly _conditionExpressions: string[];
     private readonly _updateExpressions: Map<string, string[]>;
-    constructor(recordId: DynamoDBRecordIndex,
+    constructor(recordId: ArrowStoreRecordId,
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper) {
         super(recordId, schemaProvider, recordMapper);
@@ -160,12 +160,12 @@ class UpdateItemBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBu
     }
 }
 
-export class DynamoDBTransactUpdateItemBuilder<TRecord extends DynamoDBRecord> implements TransactUpdateItemBuilder<TRecord> {
-    private readonly _recordId: DynamoDBRecordIndex;
+export class DynamoDBTransactUpdateItemBuilder<TRecord extends {}> implements TransactUpdateItemBuilder<TRecord> {
+    private readonly _recordId: ArrowStoreRecordId;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _updateExpressionBuilder: UpdateItemBuilder<TRecord>;
 
-    constructor(recordId: DynamoDBRecordIndex,
+    constructor(recordId: ArrowStoreRecordId,
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper)
     {
@@ -213,13 +213,13 @@ export class DynamoDBTransactUpdateItemBuilder<TRecord extends DynamoDBRecord> i
     }
 }
 
-export class DynamoDBUpdateBuilder<TRecord extends DynamoDBRecord> implements UpdateBuilder<TRecord> {
-    private readonly _recordId: DynamoDBRecordIndex;
+export class DynamoDBUpdateBuilder<TRecord extends {}> implements UpdateBuilder<TRecord> {
+    private readonly _recordId: ArrowStoreRecordId;
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _clientResolver: DynamoDBClientResolver;
     private readonly _updateExpressionBuilder: UpdateItemBuilder<TRecord>;
 
-    constructor(recordId: DynamoDBRecordIndex,
+    constructor(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>,
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver)

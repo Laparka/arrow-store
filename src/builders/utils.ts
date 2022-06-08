@@ -7,7 +7,7 @@ import {
     COMPARE_OPERATOR_TYPE,
     FUNCTION_OPERATOR_TYPE,
     PrimaryAttributeValue
-} from "../records/record";
+} from "../types";
 
 export type RequestInput = {
     ExpressionAttributeNames?: ExpressionAttributeNameMap;

@@ -1,21 +1,21 @@
-import {DynamoDBRecord} from "../records/record";
+import {ArrowStoreRecord} from "../types";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBClientResolver} from "../services/dynamoResolver";
+import {WhenExpressionBuilder} from "./batchWriteBuilder";
 import {Put, PutItemInput} from "aws-sdk/clients/dynamodb";
 import {joinFilterExpressions, setExpressionAttributes} from "./utils";
-import {WhenExpressionBuilder} from "./batchWriteBuilder";
+import {DynamoDBClientResolver} from "../client";
 
-export type PutBuilder<TRecord extends DynamoDBRecord> = {
+export type PutBuilder<TRecord extends ArrowStoreRecord> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): PutBuilder<TRecord>,
     executeAsync(): Promise<boolean>
 };
 
-export type TransactPutItemBuilder<TRecord extends DynamoDBRecord> = {
+export type TransactPutItemBuilder<TRecord extends ArrowStoreRecord> = {
     when<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): TransactPutItemBuilder<TRecord>;
 };
 
-export class DynamoDBTransactPutItemBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> implements TransactPutItemBuilder<TRecord> {
+export class DynamoDBTransactPutItemBuilder<TRecord extends ArrowStoreRecord> extends WhenExpressionBuilder<TRecord> implements TransactPutItemBuilder<TRecord> {
     private readonly _record: TRecord;
     private readonly _conditionExpressions: string[];
 
@@ -49,7 +49,7 @@ export class DynamoDBTransactPutItemBuilder<TRecord extends DynamoDBRecord> exte
 
         const attributesToSave = this._recordMapper.toAttributeMap<TRecord>(typeId, this._record);
         if (!attributesToSave) {
-            throw Error(`Failed to map the record ${Symbol.keyFor(typeId)} to DynamoDB attributes`);
+            throw Error(`Failed to map the record ${typeId} to DynamoDB attributes`);
         }
 
         const put: Put = {
@@ -64,7 +64,7 @@ export class DynamoDBTransactPutItemBuilder<TRecord extends DynamoDBRecord> exte
     }
 }
 
-export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> implements PutBuilder<TRecord> {
+export class DynamoDBPutBuilder<TRecord extends ArrowStoreRecord> extends WhenExpressionBuilder<TRecord> implements PutBuilder<TRecord> {
     private readonly _record: TRecord;
     private readonly _clientResolver: DynamoDBClientResolver;
     private readonly _conditionExpressions: string[];
@@ -101,7 +101,7 @@ export class DynamoDBPutBuilder<TRecord extends DynamoDBRecord> extends WhenExpr
 
         const attributesToSave = this._recordMapper.toAttributeMap<TRecord>(typeId, this._record);
         if (!attributesToSave) {
-            throw Error(`Failed to map the record ${Symbol.keyFor(typeId)} to DynamoDB attributes`);
+            throw Error(`Failed to map the record ${typeId} to DynamoDB attributes`);
         }
 
         const client = this._clientResolver.resolve();

@@ -1,4 +1,4 @@
-import {COMPARE_OPERATOR_TYPE} from "../records/record";
+import {COMPARE_OPERATOR_TYPE} from "../types";
 
 export type BOOLEAN_OPERATOR = 'AND' | 'OR';
 export type EXPRESSION_NODE_TYPE = "ConstantValue" | "NullValue" | "UndefinedValue" | "LambdaExpression" | "GroupExpression" | "Function" | "Inverse"

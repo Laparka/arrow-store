@@ -1,14 +1,12 @@
 import {
     AttributeDescriptor,
     DynamoDBQueryResult,
-    DynamoDBRecord,
-    DynamoDBRecordIndex,
-    DynamoDBRecordIndexBase, PrimaryAttributeValue,
+    PrimaryAttributeValue,
     PrimaryKeysMap
-} from "../records/record";
+} from "../types";
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {AttributeValue, QueryInput, QueryOutput} from 'aws-sdk/clients/dynamodb'
-import {DynamoDBClientResolver} from "../services/dynamoResolver";
+import {DynamoDBClientResolver} from "../client";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDB} from "aws-sdk";
 import {
@@ -17,18 +15,19 @@ import {
     setExpressionAttributes, toKeyAttributeExpression
 } from "./utils";
 import {WhenExpressionBuilder} from "./batchWriteBuilder";
+import {ArrowStoreRecordId, ArrowStoreTypeRecordId} from "../types";
 
-export type ListQueryBuilder<TRecord extends DynamoDBRecord> = {
+export type ListQueryBuilder<TRecord> = {
     where<TContext>(predicate: (record: TRecord, context: TContext) => boolean, context?: TContext): ListQueryBuilder<TRecord>,
-    skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord>,
+    skipTo(recordId: ArrowStoreRecordId): ListQueryBuilder<TRecord>,
     take(takeRecords: number): ListQueryBuilder<TRecord>,
     sortByAscending(): ListQueryBuilder<TRecord>,
     sortByDescending(): ListQueryBuilder<TRecord>,
     listAsync(): Promise<DynamoDBQueryResult<TRecord>>,
 };
 
-export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends WhenExpressionBuilder<TRecord> implements ListQueryBuilder<TRecord> {
-    private readonly _recordQuery: DynamoDBRecordIndexBase<TRecord>;
+export class DynamoDBListQueryBuilder<TRecord> extends WhenExpressionBuilder<TRecord> implements ListQueryBuilder<TRecord> {
+    private readonly _recordQuery: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>;
     private readonly _clientResolver: DynamoDBClientResolver;
 
     private readonly _filterExpressions: string[];
@@ -36,7 +35,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends Wh
     private _exclusiveStartKey: DynamoDB.Key | undefined;
     private _limit: number | undefined;
 
-    constructor(recordQuery: DynamoDBRecordIndexBase<TRecord>,
+    constructor(recordQuery: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>,
                 schemaProvider: DynamoDBSchemaProvider,
                 recordMapper: DynamoDBRecordMapper,
                 clientResolver: DynamoDBClientResolver) {
@@ -56,7 +55,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends Wh
         return this;
     }
 
-    skipTo(recordId: DynamoDBRecordIndex): ListQueryBuilder<TRecord> {
+    skipTo(recordId: ArrowStoreRecordId): ListQueryBuilder<TRecord> {
         if (!recordId) {
             throw Error(`The recordId is missing`)
         }
@@ -118,7 +117,7 @@ export class DynamoDBListQueryBuilder<TRecord extends DynamoDBRecord> extends Wh
             if (response.Items && response.Count && response.Count > 0) {
                 response.Items.forEach(attribute => {
                     if (attribute && Object.getOwnPropertyNames(attribute).length === 0) {
-                        records.push(this._recordMapper.toRecord<TRecord>(this._recordQuery.getRecordType(), recordTypeId, attribute));
+                        records.push(this._recordMapper.toRecord<TRecord>(recordTypeId, attribute));
                     }
                 });
             }

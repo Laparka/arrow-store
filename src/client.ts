@@ -1,42 +1,41 @@
-import {
-    DynamoDBRecord,
-    DynamoDBRecordIndex,
-    DynamoDBRecordIndexBase, GetRecordInBatchRequest
-} from "../records/record";
-import {DynamoDBListQueryBuilder, ListQueryBuilder} from "../builders/listQueryBuilder";
-import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
-import {DynamoDBClientResolver} from "./dynamoResolver";
-import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBUpdateBuilder, UpdateBuilder} from "../builders/updateBuilder";
-import {DeleteBuilder, DynamoDBDeleteItemBuilder} from "../builders/deleteBuilder";
-import {DynamoDBPutBuilder, PutBuilder} from "../builders/putBuilder";
+import {ArrowStoreRecord, ArrowStoreRecordId, ArrowStoreTypeRecordId} from "./types";
+import {DynamoDBRecordMapper} from "./mappers/recordMapper";
+import {DynamoDBSchemaProvider} from "./mappers/schemaBuilders";
 import {
     AttributeMap,
     BatchGetItemInput,
     BatchGetItemOutput,
-    BatchGetRequestMap, BatchWriteItemInput, BatchWriteItemOutput, Get,
+    BatchGetRequestMap, BatchWriteItemInput, BatchWriteItemOutput,
     GetItemInput,
     Key, TransactGetItemList, TransactGetItemsInput, TransactGetItemsOutput
 } from "aws-sdk/clients/dynamodb";
-import {
-    BatchWriteBuilder,
-    DynamoDBBatchWriteBuilder
-} from "../builders/batchWriteBuilder";
-import {DynamoDBTransactWriteItemBuilder, TransactWriteBuilder} from "../builders/transactWriteBuilder";
+import {DynamoDBListQueryBuilder, ListQueryBuilder} from "./builders/listQueryBuilder";
+import {DeleteBuilder, DynamoDBDeleteItemBuilder} from "./builders/deleteBuilder";
+import {DynamoDBPutBuilder, PutBuilder} from "./builders/putBuilder";
+import {DynamoDBUpdateBuilder, UpdateBuilder} from "./builders/updateBuilder";
+import {BatchWriteBuilder, DynamoDBBatchWriteBuilder} from "./builders/batchWriteBuilder";
+import {DynamoDBTransactWriteItemBuilder, TransactWriteBuilder} from "./builders/transactWriteBuilder";
+import {DynamoDB} from "aws-sdk";
 
-export interface DatabaseService {
-    getAsync<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): Promise<TRecord | null>;
-    query<TRecord extends DynamoDBRecord>(query: DynamoDBRecordIndexBase<TRecord>): ListQueryBuilder<TRecord>;
-    put<TRecord extends DynamoDBRecord>(record: TRecord): PutBuilder<TRecord>;
-    update<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): UpdateBuilder<TRecord>;
-    delete<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): DeleteBuilder<TRecord>;
-    batchGetAsync(getRequests: GetRecordInBatchRequest[]): Promise<DynamoDBRecord[]>;
-    batchWriteAsync(param: (query: BatchWriteBuilder) => void): Promise<void>;
-    transactGetItemsAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]>;
-    transactWriteItems(clientRequestToken?: string): TransactWriteBuilder;
+export type DynamoDBClientResolver = {
+    resolve(): DynamoDB;
 }
 
-export class DynamoDBService implements DatabaseService {
+export type DynamoDBClient = {
+    getAsync<TRecord>(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): Promise<TRecord | null>
+    batchGetAsync(recordIds: ArrowStoreRecordId[]): Promise<{}[]>
+    transactGetItemsAsync(recordIds: ArrowStoreRecordId[]): Promise<{}[]>
+    query<TRecord>(query: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): ListQueryBuilder<TRecord>;
+
+    delete<TRecord>(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): DeleteBuilder<TRecord>;
+    put<TRecord extends ArrowStoreRecord>(record: TRecord): PutBuilder<TRecord>;
+    update<TRecord>(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): UpdateBuilder<TRecord>;
+
+    batchWriteAsync(builder: (query: BatchWriteBuilder) => void): Promise<void>;
+    transactWriteItems(clientRequestToken?: string): TransactWriteBuilder
+};
+
+export class DefaultDynamoDBClient implements DynamoDBClient {
     private readonly _clientResolver: DynamoDBClientResolver;
     private readonly _schemaProvider: DynamoDBSchemaProvider;
     private readonly _recordMapper: DynamoDBRecordMapper;
@@ -47,7 +46,7 @@ export class DynamoDBService implements DatabaseService {
         this._recordMapper = recordMapper;
     }
 
-    async getAsync<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): Promise<TRecord | null> {
+    async getAsync<TRecord>(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): Promise<TRecord | null> {
         if (!recordId) {
             throw Error(`The recordId is missing`);
         }
@@ -70,37 +69,21 @@ export class DynamoDBService implements DatabaseService {
             return null;
         }
 
-        return this._recordMapper.toRecord<TRecord>(recordId.getRecordType(), recordId.getRecordTypeId(), response.Item);
+        return this._recordMapper.toRecord<TRecord>(recordId.getRecordTypeId(), response.Item);
     }
 
-    query<TRecord extends DynamoDBRecord>(query: DynamoDBRecordIndexBase<TRecord>): ListQueryBuilder<TRecord> {
-        return new DynamoDBListQueryBuilder<TRecord>(query, this._schemaProvider, this._recordMapper, this._clientResolver);
-    }
-
-    delete<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): DeleteBuilder<TRecord> {
-        return new DynamoDBDeleteItemBuilder<TRecord>(recordId, this._schemaProvider, this._recordMapper, this._clientResolver);
-    }
-
-    put<TRecord extends DynamoDBRecord>(record: TRecord): PutBuilder<TRecord> {
-        return new DynamoDBPutBuilder<TRecord>(record, this._schemaProvider, this._recordMapper, this._clientResolver);
-    }
-
-    update<TRecord extends DynamoDBRecord>(recordId: DynamoDBRecordIndexBase<TRecord>): UpdateBuilder<TRecord> {
-        return new DynamoDBUpdateBuilder(recordId, this._schemaProvider, this._recordMapper, this._clientResolver);
-    }
-
-    async batchGetAsync(getRequests: GetRecordInBatchRequest[]): Promise<DynamoDBRecord[]> {
-        if (!getRequests || getRequests.length === 0) {
-            throw Error(`The recordIndices argument is required`);
+    async batchGetAsync(recordIds: ArrowStoreRecordId[]): Promise<{}[]> {
+        if (!recordIds || recordIds.length === 0) {
+            throw Error(`The recordIds argument is required`);
         }
 
         const batchGetRequest: BatchGetRequestMap = {};
-        const keyReferences = new Map<string, GetRecordInBatchRequest>();
         const tablePrimaryAttrNames = new Map<string, string[]>();
-        for(let i = 0; i < getRequests.length; i++) {
-            const getRequest = getRequests[i];
-            const tableName = getRequest.recordId.getTableName();
-            const primaryKeys = getRequest.recordId.getPrimaryKeys();
+        const recordTypes = new Map<string, string>();
+        for(let i = 0; i < recordIds.length; i++) {
+            const recordId = recordIds[i];
+            const tableName = recordId.getTableName();
+            const primaryKeys = recordId.getPrimaryKeys();
             let keyList = batchGetRequest[tableName];
             if (!keyList) {
                 keyList = {
@@ -111,8 +94,9 @@ export class DynamoDBService implements DatabaseService {
             }
 
             const key = this._recordMapper.toKeyAttribute(primaryKeys);
+
             keyList.Keys.push(key);
-            keyReferences.set(DynamoDBService._toRecordIdHash(tableName, key), getRequest)
+            recordTypes.set(DefaultDynamoDBClient._toRecordIdHash(tableName, key), recordId.getRecordTypeId());
         }
 
         const client = this._clientResolver.resolve();
@@ -120,7 +104,7 @@ export class DynamoDBService implements DatabaseService {
             RequestItems: batchGetRequest
         };
 
-        const records: DynamoDBRecord[] = [];
+        const records: {}[] = [];
         let response: BatchGetItemOutput;
         let totalProcessed = 0;
         do {
@@ -141,10 +125,9 @@ export class DynamoDBService implements DatabaseService {
                     const items = response.Responses[tableName];
                     for(let j = 0; j < items.length; j++) {
                         const itemAttributes = items[j];
-                        const getRequest = DynamoDBService._findRequest(tableName, primaryAttrNames, itemAttributes, keyReferences);
-                        const record = new DummyRecord(getRequest.recordId);
-                        this._recordMapper.fillRecord(record, getRequest.recordId.getRecordTypeId(), itemAttributes)
-                        getRequest.record = record;
+                        const recordTypeId = DefaultDynamoDBClient._findRecordType(tableName, primaryAttrNames, itemAttributes, recordTypes);
+                        const record = {};
+                        this._recordMapper.fillRecord(record, recordTypeId, itemAttributes)
                         records.push(record);
                         totalProcessed++;
                     }
@@ -159,28 +142,7 @@ export class DynamoDBService implements DatabaseService {
         return records;
     }
 
-    async batchWriteAsync(builder: (query: BatchWriteBuilder) => void): Promise<void> {
-        const writeBuilder = new DynamoDBBatchWriteBuilder(this._recordMapper);
-        builder(writeBuilder);
-        const requests = writeBuilder.buildRequests();
-        const client = this._clientResolver.resolve();
-        const input: BatchWriteItemInput = {
-            RequestItems: requests,
-            ReturnItemCollectionMetrics: "NONE",
-            ReturnConsumedCapacity: "NONE"
-        };
-
-        let response: BatchWriteItemOutput;
-        do {
-            response = await client.batchWriteItem(input).promise();
-            if (response.UnprocessedItems) {
-                input.RequestItems = response.UnprocessedItems;
-            }
-        }
-        while(response.UnprocessedItems && Object.getOwnPropertyNames(response.UnprocessedItems).length !== 0)
-    }
-
-    async transactGetItemsAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
+    async transactGetItemsAsync(recordIds: ArrowStoreRecordId[]): Promise<{}[]> {
         if (!recordIds || recordIds.length === 0) {
             throw Error(`The recordIds argument is required`);
         }
@@ -204,7 +166,7 @@ export class DynamoDBService implements DatabaseService {
             TransactItems: transactGetRequest
         };
 
-        const records: DynamoDBRecord[] = [];
+        const records: {}[] = [];
         let response: TransactGetItemsOutput;
         response = await client.transactGetItems(input).promise();
         if (response.Responses) {
@@ -215,13 +177,50 @@ export class DynamoDBService implements DatabaseService {
                 }
 
                 const recordId = recordIds[i];
-                const record = new DummyRecord(recordId);
+                const record = {};
                 this._recordMapper.fillRecord(record, recordId.getRecordTypeId(), transactResponse.Item)
                 records.push(record);
             }
         }
 
         return records;
+    }
+
+    query<TRecord>(query: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): ListQueryBuilder<TRecord> {
+        return new DynamoDBListQueryBuilder<TRecord>(query, this._schemaProvider, this._recordMapper, this._clientResolver);
+    }
+
+    delete<TRecord>(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): DeleteBuilder<TRecord> {
+        return new DynamoDBDeleteItemBuilder<TRecord>(recordId, this._schemaProvider, this._recordMapper, this._clientResolver);
+    }
+
+    put<TRecord extends ArrowStoreRecord>(record: TRecord): PutBuilder<TRecord> {
+        return new DynamoDBPutBuilder<TRecord>(record, this._schemaProvider, this._recordMapper, this._clientResolver);
+    }
+
+    update<TRecord>(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>): UpdateBuilder<TRecord> {
+        return new DynamoDBUpdateBuilder(recordId, this._schemaProvider, this._recordMapper, this._clientResolver);
+    }
+
+    async batchWriteAsync(builder: (query: BatchWriteBuilder) => void): Promise<void> {
+        const writeBuilder = new DynamoDBBatchWriteBuilder(this._recordMapper);
+        builder(writeBuilder);
+        const requests = writeBuilder.buildRequests();
+        const client = this._clientResolver.resolve();
+        const input: BatchWriteItemInput = {
+            RequestItems: requests,
+            ReturnItemCollectionMetrics: "NONE",
+            ReturnConsumedCapacity: "NONE"
+        };
+
+        let response: BatchWriteItemOutput;
+        do {
+            response = await client.batchWriteItem(input).promise();
+            if (response.UnprocessedItems) {
+                input.RequestItems = response.UnprocessedItems;
+            }
+        }
+        while(response.UnprocessedItems && Object.getOwnPropertyNames(response.UnprocessedItems).length !== 0)
     }
 
     transactWriteItems(clientRequestToken?: string): TransactWriteBuilder {
@@ -239,10 +238,10 @@ export class DynamoDBService implements DatabaseService {
         return segments.join('#');
     }
 
-    private static _findRequest(tableName: string,
-                          primaryAttrNames: string[],
-                          itemAttributes: AttributeMap,
-                          keyReferences: Map<string, GetRecordInBatchRequest>): GetRecordInBatchRequest {
+    private static _findRecordType(tableName: string,
+                                primaryAttrNames: string[],
+                                itemAttributes: AttributeMap,
+                                recordTypes: Map<string, string>): string {
         const segments: string[] = [tableName];
         primaryAttrNames = primaryAttrNames.sort();
         for(let i = 0; i < primaryAttrNames.length; i++) {
@@ -251,22 +250,11 @@ export class DynamoDBService implements DatabaseService {
             segments.push(`${attributeName}:${JSON.stringify(attributeValue)}`);
         }
 
-        const request = keyReferences.get(segments.join('#'));
-        if (!request) {
-            throw Error(`Could not find the GetRecordInBatch-request for the given hash ${segments.join('#')}`);
+        const recordTypeId = recordTypes.get(segments.join('#'));
+        if (!recordTypeId) {
+            throw Error(`Could not find the recordTypeId for the given hash ${segments.join('#')}`);
         }
 
-        return request;
-    }
-}
-
-class DummyRecord implements DynamoDBRecord {
-    private readonly _recordId: DynamoDBRecordIndex;
-    constructor(recordId: DynamoDBRecordIndex) {
-        this._recordId = recordId;
-    }
-
-    getRecordId(): DynamoDBRecordIndex {
-        return this._recordId;
+        return recordTypeId;
     }
 }

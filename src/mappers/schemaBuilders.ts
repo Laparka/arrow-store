@@ -1,6 +1,4 @@
-import {DynamoDBRecord} from "../records/record";
-
-export abstract class DynamoDBRecordSchemaSourceBase<TRecord extends DynamoDBRecord> {
+export abstract class DynamoDBRecordSchemaSourceBase<TRecord extends {}> {
     abstract getSchema(): ReadonlyMap<string, DynamoDBAttributeSchema>;
 }
 
@@ -41,59 +39,56 @@ export class DefaultSchemaSource extends DynamoDBRecordSchemaSourceBase<any> {
     }
 }
 
-export interface DynamoDBSchemaProvider {
-    getReadingSchema(recordTypeId: symbol): ReadonlyMap<string, DynamoDBAttributeSchema>;
-
-    getWritingSchema(recordTypeId: symbol): ReadonlyMap<string, DynamoDBAttributeSchema>;
+export type DynamoDBSchemaProvider = {
+    getReadingSchema(recordTypeId: string): ReadonlyMap<string, DynamoDBAttributeSchema>;
+    getWritingSchema(recordTypeId: string): ReadonlyMap<string, DynamoDBAttributeSchema>;
 }
 
 export class DefaultSchemaProvider implements DynamoDBSchemaProvider {
-    private readonly _readingSchemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>;
-    private readonly _writingSchemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>;
+    private readonly _readingSchemaSources: ReadonlyMap<string, DynamoDBRecordSchemaSourceBase<any>>;
+    private readonly _writingSchemaSources: ReadonlyMap<string, DynamoDBRecordSchemaSourceBase<any>>;
 
-    constructor(readingSchemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>, writingSchemaSources: ReadonlyMap<symbol, DynamoDBRecordSchemaSourceBase<any>>) {
+    constructor(readingSchemaSources: ReadonlyMap<string, DynamoDBRecordSchemaSourceBase<any>>, writingSchemaSources: ReadonlyMap<string, DynamoDBRecordSchemaSourceBase<any>>) {
         this._readingSchemaSources = readingSchemaSources;
         this._writingSchemaSources = writingSchemaSources;
     }
 
-    getReadingSchema(recordTypeId: symbol): ReadonlyMap<string, DynamoDBAttributeSchema> {
+    getReadingSchema(recordTypeId: string): ReadonlyMap<string, DynamoDBAttributeSchema> {
         const schemaSource = this._readingSchemaSources.get(recordTypeId);
         if (!schemaSource) {
-            throw Error(`The schema source was not found: ${Symbol.keyFor(recordTypeId)}`)
+            throw Error(`The schema source was not found: ${recordTypeId}`)
         }
 
         const readingSchema = schemaSource.getSchema();
         if (!readingSchema) {
-            throw Error(`The reading schema is not defined: ${Symbol.keyFor(recordTypeId)}`)
+            throw Error(`The reading schema is not defined: ${recordTypeId}`)
         }
 
         return readingSchema;
     }
 
-    getWritingSchema(recordTypeId: symbol): ReadonlyMap<string, DynamoDBAttributeSchema> {
+    getWritingSchema(recordTypeId: string): ReadonlyMap<string, DynamoDBAttributeSchema> {
         const schemaSource = this._writingSchemaSources.get(recordTypeId);
         if (!schemaSource) {
-            throw Error(`The schema source was not found: ${Symbol.keyFor(recordTypeId)}`)
+            throw Error(`The schema source was not found: ${recordTypeId}`)
         }
 
         const writingSchema = schemaSource.getSchema();
         if (!writingSchema) {
-            throw Error(`The writing schema is not defined: ${Symbol.keyFor(recordTypeId)}`)
+            throw Error(`The writing schema is not defined: ${recordTypeId}`)
         }
 
         return writingSchema;
     }
 }
 
-export interface MappingBuilder {
-    use<TRecord extends DynamoDBRecord>(typeId: symbol, schemaSource: DynamoDBRecordSchemaSourceBase<TRecord>): void;
-
-    createReaderFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
-
-    createWriterFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord>;
+export type MappingBuilder = {
+    use<TRecord extends {}>(typeId: string, schemaSource: DynamoDBRecordSchemaSourceBase<TRecord>): void;
+    createReaderFor<TRecord extends {}>(typeId: string): DynamoDBRecordSchemaBuilder<TRecord>;
+    createWriterFor<TRecord extends {}>(typeId: string): DynamoDBRecordSchemaBuilder<TRecord>;
 }
 
-export interface DynamoDBMappingProfile {
+export type DynamoDBMappingProfile = {
     register(builder: MappingBuilder): void;
 }
 

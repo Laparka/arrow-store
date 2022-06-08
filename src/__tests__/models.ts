@@ -1,38 +1,38 @@
 import {
     COMPARE_OPERATOR_TYPE,
-    Ctor,
     PrimaryAttributeValue,
-    DynamoDBRecordBase,
-    DynamoDBRecordIndexBase,
     FUNCTION_OPERATOR_TYPE,
-    PRIMARY_ATTRIBUTE_TYPE
-} from "../records/record";
+    PRIMARY_ATTRIBUTE_TYPE,
+    ArrowStoreTypeRecord,
+    ArrowStoreTypeRecordId,
+    ArrowStoreRecordId,
+    ArrowStoreRecordCtor
+} from "../types";
 import {DYNAMODB_ATTRIBUTE_TYPE} from "../mappers/schemaBuilders";
 
 const tableName: string = "arrow-store-samples";
 
 export const RECORD_TYPES = {
-    ClockRecord: Symbol.for("ClockRecord")
+    ClockRecord: "ClockRecord"
 };
 
-export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
+export class ClockRecordId implements ArrowStoreTypeRecordId<ClockRecord> {
     private readonly _clockId: string;
 
     constructor(clockId: string) {
-        super();
         this._clockId = clockId;
+    }
+
+    getCtor(): ArrowStoreRecordCtor<ClockRecord> {
+        return ClockRecord;
     }
 
     getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
         return [new PartitionKey('ClockRecord'), new RangeKey(this._clockId)];
     }
 
-    getRecordTypeId(): symbol {
+    getRecordTypeId(): string {
         return RECORD_TYPES.ClockRecord;
-    }
-
-    getRecordType(): Ctor<ClockRecord> {
-        return ClockRecord;
     }
 
     getIndexName(): string | undefined {
@@ -56,15 +56,14 @@ export type ClockDetails = {
     serialNumber: string;
 };
 
-export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
+export class ClockRecord implements ArrowStoreTypeRecord<ClockRecordId> {
     constructor() {
-        super();
         this.isCertified = false;
         this.totalSegments = null;
         this.clockDetails = null;
         this.eligibleInCountries = [];
         this.availableInStores = [];
-    };
+    }
 
     isCertified: boolean;
     clockType!: CLOCK_TYPE;
@@ -76,7 +75,7 @@ export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
     availableInStores: string[];
     reviewScore: number | undefined;
 
-    protected doGetRecordId(): ClockRecordId {
+    getRecordId(): ArrowStoreRecordId {
         if (!this.clockModel) {
             throw Error(`The clockModel value is missing`)
         }
@@ -85,17 +84,17 @@ export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
     }
 }
 
-export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
+export class ClocksQuery implements ArrowStoreTypeRecordId<ClockRecord> {
+    getIndexName(): string | undefined {
+        return undefined;
+    }
+
     getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
         return [new PartitionKey('ClockRecord')];
     }
 
-    getRecordTypeId(): symbol {
+    getRecordTypeId(): string {
         return RECORD_TYPES.ClockRecord;
-    }
-
-    getRecordType(): Ctor<ClockRecord> {
-        return ClockRecord;
     }
 
     isConsistentRead(): boolean {
@@ -106,6 +105,9 @@ export class ClocksQuery extends DynamoDBRecordIndexBase<ClockRecord> {
         return tableName;
     }
 
+    getCtor(): ArrowStoreRecordCtor<ClockRecord> | undefined {
+        return undefined;
+    }
 }
 
 export class PartitionKey implements PrimaryAttributeValue {

@@ -6,36 +6,36 @@ import {
     DynamoDBSchemaProvider,
     MappingBuilder
 } from "./schemaBuilders";
-import {DynamoDBRecord} from "../records/record";
+import {ArrowStoreRecord} from "../types";
 import {AttributeSchemaBuilder} from "./attributeSchemaBuilder";
 
 export default class DynamoDBMappingBuilder implements MappingBuilder {
-    private readonly _fromAttributeReaders: Map<symbol, DynamoDBRecordSchemaBuilder<any>>;
-    private readonly _toAttributeWriters: Map<symbol, DynamoDBRecordSchemaBuilder<any>>;
+    private readonly _fromAttributeReaders: Map<string, DynamoDBRecordSchemaBuilder<any>>;
+    private readonly _toAttributeWriters: Map<string, DynamoDBRecordSchemaBuilder<any>>;
 
-    private readonly _readingSchemaSources: Map<symbol, DynamoDBRecordSchemaSourceBase<any>>;
-    private readonly _writingSchemaSources: Map<symbol, DynamoDBRecordSchemaSourceBase<any>>;
+    private readonly _readingSchemaSources: Map<string, DynamoDBRecordSchemaSourceBase<any>>;
+    private readonly _writingSchemaSources: Map<string, DynamoDBRecordSchemaSourceBase<any>>;
 
     constructor() {
-        this._fromAttributeReaders = new Map<symbol, DynamoDBRecordSchemaBuilder<any>>();
-        this._toAttributeWriters = new Map<symbol, DynamoDBRecordSchemaBuilder<any>>();
-        this._readingSchemaSources = new Map<symbol, DynamoDBRecordSchemaSourceBase<any>>();
-        this._writingSchemaSources = new Map<symbol, DynamoDBRecordSchemaSourceBase<any>>();
+        this._fromAttributeReaders = new Map<string, DynamoDBRecordSchemaBuilder<any>>();
+        this._toAttributeWriters = new Map<string, DynamoDBRecordSchemaBuilder<any>>();
+        this._readingSchemaSources = new Map<string, DynamoDBRecordSchemaSourceBase<any>>();
+        this._writingSchemaSources = new Map<string, DynamoDBRecordSchemaSourceBase<any>>();
     }
 
-    createReaderFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord> {
+    createReaderFor<TRecord extends {}>(typeId: string): DynamoDBRecordSchemaBuilder<TRecord> {
         const builder = new AttributeSchemaBuilder<TRecord>();
         this._fromAttributeReaders.set(typeId, builder);
         return builder;
     }
 
-    createWriterFor<TRecord extends DynamoDBRecord>(typeId: symbol): DynamoDBRecordSchemaBuilder<TRecord> {
+    createWriterFor<TRecord extends {}>(typeId: string): DynamoDBRecordSchemaBuilder<TRecord> {
         const builder = new AttributeSchemaBuilder<TRecord>();
         this._toAttributeWriters.set(typeId, builder);
         return builder;
     }
 
-    use<TRecord extends DynamoDBRecord>(typeId: symbol, schemaSource: DynamoDBRecordSchemaSourceBase<TRecord>): void {
+    use<TRecord extends {}>(typeId: string, schemaSource: DynamoDBRecordSchemaSourceBase<TRecord>): void {
         if (!typeId) {
             throw Error(`The record registration type ID is required`);
         }

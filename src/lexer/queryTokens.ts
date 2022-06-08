@@ -1,4 +1,4 @@
-import {COMPARE_OPERATOR_TYPE} from "../records/record";
+import {COMPARE_OPERATOR_TYPE} from "../types";
 
 type TokenType = 'GroupStart' | 'GroupEnd' | 'LambdaInitializer' | 'CommaSeparator'
     | 'Object' | 'Inverse' | 'Assign' | "MathOperator"

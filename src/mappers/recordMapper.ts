@@ -1,17 +1,13 @@
-import {
-    AttributeDescriptor,
-    Ctor,
-    DynamoDBRecord
-} from "../records/record";
 import {DYNAMODB_ATTRIBUTE_TYPE, DynamoDBAttributeSchema, DynamoDBSchemaProvider} from "./schemaBuilders";
 import {DynamoDB} from "aws-sdk";
 import {AttributeValue} from "aws-sdk/clients/dynamodb";
+import {ArrowStoreRecord, AttributeDescriptor} from "../types";
 
 export type DynamoDBRecordMapper = {
-    toRecord<TRecord extends DynamoDBRecord>(recordCtor: Ctor<TRecord>, recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord;
-    toAttributeMap<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap;
+    toRecord<TRecord>(recordTypeId: string, attributes: DynamoDB.AttributeMap): TRecord;
+    toAttributeMap<TRecord extends ArrowStoreRecord>(recordTypeId: string, record: TRecord): DynamoDB.AttributeMap;
     toKeyAttribute(primaryKeys: ReadonlyArray<AttributeDescriptor>): DynamoDB.Key;
-    fillRecord(record: DynamoDBRecord, recordTypeId: symbol, itemAttributes: DynamoDB.AttributeMap): void;
+    fillRecord(record: {}, recordTypeId: string, itemAttributes: DynamoDB.AttributeMap): void;
 }
 
 export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
@@ -21,10 +17,10 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         this._schemaProvider = schemaProvider;
     }
 
-    toAttributeMap<TRecord extends DynamoDBRecord>(recordTypeId: symbol, record: TRecord): DynamoDB.AttributeMap {
+    toAttributeMap<TRecord extends ArrowStoreRecord>(recordTypeId: string, record: TRecord): DynamoDB.AttributeMap {
         const writingSchema = this._schemaProvider.getWritingSchema(recordTypeId);
         if (!writingSchema) {
-            throw Error(`Writing schema was not found for the record type ID "${Symbol.keyFor(recordTypeId)}"`);
+            throw Error(`Writing schema was not found for the record type ID "${recordTypeId}"`);
         }
 
         const attributesMap: DynamoDB.AttributeMap = {};
@@ -61,7 +57,7 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
         return Object.assign(attributesMap, primaryKeys);
     }
 
-    toRecord<TRecord extends DynamoDBRecord>(recordCtor: Ctor<TRecord>, recordTypeId: symbol, attributes: DynamoDB.AttributeMap): TRecord {
+    toRecord<TRecord>(recordTypeId: string, attributes: DynamoDB.AttributeMap): TRecord {
         if (!recordTypeId) {
             throw Error(`The record type ID is missing`);
         }
@@ -70,15 +66,15 @@ export class DefaultDynamoDBRecordMapper implements DynamoDBRecordMapper {
             throw Error(`The attribute map is missing`)
         }
 
-        const record = new recordCtor();
+        const record = {};
         this.fillRecord(record, recordTypeId, attributes);
-        return record;
+        return <TRecord>record;
     }
 
-    fillRecord(record: DynamoDBRecord, recordTypeId: symbol, itemAttributes: DynamoDB.AttributeMap): void {
+    fillRecord(record: {}, recordTypeId: string, itemAttributes: DynamoDB.AttributeMap): void {
         const readingSchema = this._schemaProvider.getReadingSchema(recordTypeId);
         if (!readingSchema) {
-            throw Error(`Failed to find a reading schema for the ${Symbol.keyFor(recordTypeId)}`);
+            throw Error(`Failed to find a reading schema for the ${recordTypeId}`);
         }
 
         const iterator = readingSchema.entries();

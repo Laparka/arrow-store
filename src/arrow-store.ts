@@ -15,15 +15,13 @@ export * from './mappers/mappingBuilder';
 export * from './mappers/recordMapper';
 export * from './mappers/schemaBuilders';
 
-export * from './parser/expressionParser'
-export * from './parser/nodes'
-export * from './parser/updateExpressionParser'
-export * from './parser/whereCauseExpressionParser'
+export * from './parser/expressionParser';
+export * from './parser/nodes';
+export * from './parser/updateExpressionParser';
+export * from './parser/whereCauseExpressionParser';
 
-export * from './records/record'
-
-export * from './services/dynamoResolver';
-export * from './services/dynamoService';
+export * from './types';
+export * from './client';
 
 export * from './transformers/expressionTransformer';
 export * from './transformers/updateExpressionTransformer';

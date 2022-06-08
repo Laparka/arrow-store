@@ -13,7 +13,7 @@ import {
     UndefinedValueNode
 } from "./nodes";
 import {ExpressionParser, NodeExpressionIterator} from "./expressionParser";
-import {COMPARE_OPERATOR_TYPE} from "../records/record";
+import {COMPARE_OPERATOR_TYPE} from "../types";
 
 const _comparisonTokens: TOKEN_TYPE[] = ['Equals', 'NotEquals', 'GreaterThan', 'GreaterThanOrEquals', 'LessThan', 'LessThanOrEquals'];
 

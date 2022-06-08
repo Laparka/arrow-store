@@ -5,15 +5,15 @@ import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
 import {WhereCauseExpressionTransformer} from "../transformers/whereCauseExpressionTransformer";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
-import {DynamoDBRecord, DynamoDBRecordIndex} from "../records/record";
+import {ArrowStoreRecord, ArrowStoreRecordId, ArrowStoreTypeRecordId} from "../types";
 
 export type BatchWriteBuilder = {
-    put<TRecord extends DynamoDBRecord>(record: TRecord): BatchWriteBuilder;
-    delete(recordId: DynamoDBRecordIndex): BatchWriteBuilder;
+    put<TRecord extends ArrowStoreRecord>(record: TRecord): BatchWriteBuilder;
+    delete(recordId: ArrowStoreRecordId): BatchWriteBuilder;
 };
 
-export class WhenExpressionBuilder<TRecord extends DynamoDBRecord> {
-    protected readonly _recordId: DynamoDBRecordIndex;
+export class WhenExpressionBuilder<TRecord> {
+    protected readonly _recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>;
     protected readonly _schemaProvider: DynamoDBSchemaProvider;
     protected readonly _recordMapper: DynamoDBRecordMapper;
     protected readonly _conditionFilterTransformer: ExpressionTransformer;
@@ -24,7 +24,7 @@ export class WhenExpressionBuilder<TRecord extends DynamoDBRecord> {
     private readonly _attributeNameAliases: Map<string, ExpressionAttribute>;
     private readonly _attributeValueAliases: Map<string, string>;
 
-    constructor(recordId: DynamoDBRecordIndex,
+    constructor(recordId: ArrowStoreRecordId | ArrowStoreTypeRecordId<TRecord>,
                           schemaProvider: DynamoDBSchemaProvider,
                           recordMapper: DynamoDBRecordMapper) {
         this._recordId = recordId;
@@ -90,6 +90,7 @@ export class WhenExpressionBuilder<TRecord extends DynamoDBRecord> {
 export class DynamoDBBatchWriteBuilder implements BatchWriteBuilder {
     private readonly _recordMapper: DynamoDBRecordMapper;
     private readonly _requests: BatchWriteItemRequestMap;
+
     constructor(recordMapper: DynamoDBRecordMapper) {
         this._recordMapper = recordMapper;
         this._requests = {};
@@ -103,7 +104,7 @@ export class DynamoDBBatchWriteBuilder implements BatchWriteBuilder {
         return this._requests;
     }
 
-    delete(recordId: DynamoDBRecordIndex): BatchWriteBuilder {
+    delete(recordId: ArrowStoreRecordId): BatchWriteBuilder {
         const keySchema = this._recordMapper.toKeyAttribute(recordId.getPrimaryKeys());
         const tableRequests = this._getTableGroup(recordId.getTableName());
         tableRequests.push({
@@ -115,11 +116,11 @@ export class DynamoDBBatchWriteBuilder implements BatchWriteBuilder {
         return this;
     }
 
-    put<TRecord extends DynamoDBRecord>(record: TRecord): BatchWriteBuilder {
+    put<TRecord extends ArrowStoreRecord>(record: TRecord): BatchWriteBuilder {
         const recordId = record.getRecordId()
         const attributesToSave = this._recordMapper.toAttributeMap<TRecord>(recordId.getRecordTypeId(), record);
         if (!attributesToSave) {
-            throw Error(`Failed to map the record ${Symbol.keyFor(recordId.getRecordTypeId())} to DynamoDB attributes`);
+            throw Error(`Failed to map the record ${recordId.getRecordTypeId()} to DynamoDB attributes`);
         }
 
         const tableRequests = this._getTableGroup(recordId.getTableName());
@@ -140,6 +141,5 @@ export class DynamoDBBatchWriteBuilder implements BatchWriteBuilder {
         }
 
         return tableRequests;
-
     }
-};
+}

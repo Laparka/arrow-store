@@ -1,7 +1,7 @@
 import {AppRecordIdBase, PartitionAttributeValue, RangeAttributeValue} from "./appRecordIdBase";
-import {Ctor, DynamoDBRecordBase, PrimaryAttributeValue} from "arrow-store";
+import {ArrowStoreRecordCtor, ArrowStoreRecordId, ArrowStoreTypeRecord, PrimaryAttributeValue} from "arrow-store";
 
-export const MessageRecordTypeId = Symbol.for("MessageRecord");
+export const MessageRecordTypeId ="MessageRecord";
 
 export class MessageRecordId extends AppRecordIdBase<MessageRecord> {
     private readonly _contactId: string;
@@ -28,33 +28,36 @@ export class MessageRecordId extends AppRecordIdBase<MessageRecord> {
         ];
     }
 
-    getRecordType(): Ctor<MessageRecord> {
+    getCtor(): ArrowStoreRecordCtor<MessageRecord> {
         return MessageRecord;
     }
 
-    getRecordTypeId(): symbol {
+    getRecordTypeId(): string {
         return MessageRecordTypeId;
     }
 
     isConsistentRead(): boolean {
         return false;
     }
+
+    getIndexName(): string | undefined {
+        return undefined;
+    }
 }
 
-export class MessageRecord extends DynamoDBRecordBase<MessageRecordId> {
+export class MessageRecord implements ArrowStoreTypeRecord<MessageRecordId> {
     messageId: string;
     contactId: string;
     message: string;
     viewedBy?: string;
     expiresUtc?: number;
     constructor() {
-        super();
         this.message = "";
         this.messageId = "";
         this.contactId = "";
     }
 
-    protected doGetRecordId(): MessageRecordId {
+    getRecordId(): ArrowStoreRecordId {
         return new MessageRecordId(this.contactId, this.messageId);
     }
 }

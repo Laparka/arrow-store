@@ -1,7 +1,7 @@
-import {Ctor, DynamoDBRecordBase, DynamoDBRecordIndexBase, PrimaryAttributeValue} from "arrow-store";
 import {AppRecordIdBase, PartitionAttributeValue, RangeAttributeValue} from "./appRecordIdBase";
+import {ArrowStoreRecordCtor, ArrowStoreRecordId, ArrowStoreTypeRecord, PrimaryAttributeValue} from "arrow-store";
 
-export const UserRecordType = Symbol.for("UserRecord");
+export const UserRecordType = "UserRecord";
 
 export class UserRecordId extends AppRecordIdBase<UserRecord> {
     private readonly _userId: string;
@@ -17,22 +17,25 @@ export class UserRecordId extends AppRecordIdBase<UserRecord> {
         ];
     }
 
-    getRecordType(): Ctor<UserRecord> {
-        return UserRecord;
-    }
-
-    getRecordTypeId(): symbol {
+    getRecordTypeId(): string {
         return UserRecordType;
     }
 
     isConsistentRead(): boolean {
         return false;
     }
+
+    getCtor(): ArrowStoreRecordCtor<UserRecord> | undefined {
+        return undefined;
+    }
+
+    getIndexName(): string | undefined {
+        return undefined;
+    }
 }
 
-export class UserRecord extends DynamoDBRecordBase<UserRecordId> {
+export class UserRecord implements ArrowStoreTypeRecord<UserRecordId> {
     constructor() {
-        super();
         this.userId = "";
         this.isActive = false;
     }
@@ -40,7 +43,7 @@ export class UserRecord extends DynamoDBRecordBase<UserRecordId> {
     userId: string;
     isActive: boolean;
 
-    protected doGetRecordId(): UserRecordId {
+    getRecordId(): ArrowStoreRecordId {
         return new UserRecordId(this.userId);
     }
 }

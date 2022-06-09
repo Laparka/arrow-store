@@ -3,12 +3,12 @@ import {MessageRecord} from "../records/messageRecord";
 import {
     DefaultDynamoDBRecordMapper,
     DynamoDBClientResolver,
-    DefaultDynamoDBClient
+    DefaultDynamoDBClient,
+    DynamoDBMappingBuilder
 } from "arrow-store";
 import {DynamoDB, EnvironmentCredentials} from "aws-sdk";
 import {AppMappingProfile} from "../records/appMappingProfile";
 import {UserRecordId} from "../records/userRecord";
-import DynamoDBMappingBuilder from "arrow-store/lib/mappers/mappingBuilder";
 
 const resolver: DynamoDBClientResolver = {
     resolve(): DynamoDB {
@@ -23,7 +23,7 @@ const mappingBuilder = new DynamoDBMappingBuilder();
 const mappingProfile = new AppMappingProfile();
 mappingProfile.register(mappingBuilder);
 const schemaProvider = mappingBuilder.buildSchemaProvider();
-const dynamoClient = new DynamoDBService(resolver, schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+const dynamoClient = new DefaultDynamoDBClient(resolver, schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
 
 export const handler = async (event: APIGatewayEvent, context: Context): Promise<APIGatewayProxyResult> => {
     if (!event.body) {
@@ -38,14 +38,14 @@ export const handler = async (event: APIGatewayEvent, context: Context): Promise
     const messageRecord = new MessageRecord();
     messageRecord.contactId = event.pathParameters["contactId"];
     messageRecord.message = body["message"];
-    messageRecord.messageId = new Date().toISOString();
+    messageRecord.messageId = [messageRecord.contactId, new Date().toISOString()].join('.');
 
     // Saves the message record only when the receiving user is exists and active
     try {
         await dynamoClient
             .transactWriteItems()
             .when(new UserRecordId(messageRecord.contactId), x => x.isActive)
-            .put(messageRecord)
+            .put(messageRecord, x => x.when(r => !r.message))
             .executeAsync();
         return {
             statusCode: 200,

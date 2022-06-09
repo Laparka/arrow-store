@@ -1,6 +1,6 @@
 import {DynamoDBMappingProfile, MappingBuilder} from "arrow-store";
 import {UserRecord, UserRecordType} from "./userRecord";
-import {MessageRecord, MessageRecordId, MessageRecordTypeId} from "./messageRecord";
+import {MessageRecord, MessageRecordTypeId} from "./messageRecord";
 
 export class AppMappingProfile implements DynamoDBMappingProfile {
     register(builder: MappingBuilder): void {

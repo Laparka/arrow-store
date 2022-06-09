@@ -24,6 +24,6 @@
   },
   "dependencies": {
     "@types/aws-lambda": "^8.10.97",
-    "arrow-store": "^0.0.5"
+    "arrow-store": "^0.0.6"
   }
 }

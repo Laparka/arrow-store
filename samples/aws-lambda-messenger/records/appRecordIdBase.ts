@@ -1,9 +1,7 @@
 import {
+    ArrowStoreRecord, ArrowStoreRecordCtor, ArrowStoreTypeRecord, ArrowStoreTypeRecordId,
     COMPARE_OPERATOR_TYPE,
-    Ctor,
-    DYNAMODB_ATTRIBUTE_TYPE,
-    DynamoDBRecord,
-    DynamoDBRecordIndexBase, FUNCTION_OPERATOR_TYPE, PRIMARY_ATTRIBUTE_TYPE,
+    DYNAMODB_ATTRIBUTE_TYPE, FUNCTION_OPERATOR_TYPE, PRIMARY_ATTRIBUTE_TYPE,
     PrimaryAttributeValue
 } from "arrow-store";
 
@@ -61,14 +59,12 @@ export class RangeAttributeValue implements PrimaryAttributeValue {
     }
 }
 
-export abstract class AppRecordIdBase<TRecord extends DynamoDBRecord> extends DynamoDBRecordIndexBase<TRecord> {
+export abstract class AppRecordIdBase<TRecord extends ArrowStoreRecord> implements ArrowStoreTypeRecordId<TRecord> {
     abstract getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue>;
-
-    abstract getRecordType(): Ctor<TRecord>;
-
-    abstract getRecordTypeId(): symbol;
-
+    abstract getRecordTypeId(): string;
     abstract isConsistentRead(): boolean;
+    abstract getCtor(): ArrowStoreRecordCtor<TRecord> | undefined;
+    abstract getIndexName(): string | undefined;
 
     getTableName(): string {
         const tableName = process.env["APP_TABLE"];

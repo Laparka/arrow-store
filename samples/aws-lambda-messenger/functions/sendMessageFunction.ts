@@ -8,7 +8,6 @@ import {
 import {DynamoDB, EnvironmentCredentials} from "aws-sdk";
 import {AppMappingProfile} from "../records/appMappingProfile";
 import {UserRecordId} from "../records/userRecord";
-import DynamoDBMappingBuilder from "../../build/mappers/mappingBuilder";
 
 const resolver: DynamoDBClientResolver = {
     resolve(): DynamoDB {

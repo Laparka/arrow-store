@@ -40,20 +40,57 @@ Consider a JSON object example:
 ```
 The library works with the objects which implement the DynamoDBRecord type:
 ```typescript
-import {DynamoDBRecordBase} from 'arrow-store';
+import {
+    ArrowStoreTypeRecord,
+    ArrowStoreTypeRecordId,
+    PrimaryAttributeValue,
+    ArrowStoreRecordCtor
+} from 'arrow-store';
 
-export class ClockRecord extends DynamoDBRecordBase<ClockRecordId> {
+export class ClockRecord implements ArrowStoreTypeRecord<ClockRecordId> {
     clockType: string;
     clockModel: string;
     brand: string;
     regulatory: ClockDetails;
 
-    protected doGetRecordId(): ClockRecordId {
+    getRecordId(): ArrowStoreRecordId {
         if (!this.clockModel) {
             throw Error(`The clockModel value is missing`)
         }
 
         return new ClockRecordId(this.clockModel);
+    }
+}
+
+export class ClockRecordId implements ArrowStoreTypeRecordId<ClockRecord> {
+    private readonly _clockId: string;
+
+    constructor(clockId: string) {
+        this._clockId = clockId;
+    }
+
+    getCtor(): ArrowStoreRecordCtor<ClockRecord> {
+        return ClockRecord;
+    }
+
+    getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
+        return [new PartitionKey('ClockRecord'), new RangeKey(this._clockId)];
+    }
+
+    getRecordTypeId(): string {
+        return RECORD_TYPES.ClockRecord;
+    }
+
+    getIndexName(): string | undefined {
+        return undefined;
+    }
+
+    isConsistentRead(): boolean {
+        return false;
+    }
+
+    getTableName(): string {
+        return tableName;
     }
 }
 
@@ -66,49 +103,7 @@ export type ClockDetails = {
 ```
 
 The RecordId implementation for the given record type
-```typescript
-import {DynamoDBRecordIndexBase, PrimaryAttributeValue, Ctor} from 'arrow-store';
 
-export class ClockRecordId extends DynamoDBRecordIndexBase<ClockRecord> {
-    private readonly _clockId: string;
-
-    constructor(clockId: string) {
-        super();
-        this._clockId = clockId;
-    }
-
-    getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
-        if (!this._clockId) {
-            throw Error(`The ClockId is missing`);
-        }
-        
-        return [
-            new PartitionKey('ClockRecord'),
-            new RangeKey(this._clockId)];
-    }
-
-    getRecordTypeId(): symbol {
-        return RECORD_TYPES.ClockRecord;
-    }
-
-    getRecordType(): Ctor<ClockRecord> {
-        return ClockRecord;
-    }
-
-    getIndexName(): string | undefined {
-        return undefined;
-    }
-
-    isConsistentRead(): boolean {
-        return false;
-    }
-
-    getTableName(): string {
-        return "MyDynamoDBTable";
-    }
-
-}
-```
 Partition Attribute
 ```typescript
 import {PrimaryAttributeValue,
@@ -346,7 +341,10 @@ Now, when the schema provider is built, we can use it for the DynamoDBService to
 # DynamoDB Requests
 ## GetItem
 With the object defined above, we'll show you how to send a GetItem-request with the ArrowStore DynamoDB Client:
+
 ```typescript
+import {DefaultDynamoDBClient, DynamoDBClientResolver} from "arrow-store";
+
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {
         config.update({region: 'us-west-2'});
@@ -358,7 +356,7 @@ class AppDynamoDBClientResolver implements DynamoDBClientResolver {
 }
 
 export async function getClockRecordAsync(clockModel: string): Promise<ClockRecord | null> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const record = await client.getAsync(new ClockRecordId(clockModel));
     return record;
 } 
@@ -373,7 +371,7 @@ aws dynamodb get-item \
 ## PutItem
 ```typescript
 export async function putClockRecordAsync(clockRecord: ClockRecord): Promise {
-const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
 const isSaved = await dynamoService
     .put(clockRecord)
     .when(x => !x.clockModel)
@@ -391,9 +389,10 @@ aws dynamodb put-item \
 ## UpdateItem
 ```typescript
 export async function updateClockRecordAsync(clockRecordId: ClockRecordId): Promise {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const params = {countries: ["ITL"]};
-    const updated = await dynamoService.update(clockRecordId)
+    const updated = await dynamoService
+        .update(clockRecordId)
         .when(x => !!x.regulatory.madeUtc)
         .set((x, ctx) => x.regulatory.availableInCountries.push(...ctx.countries), params)
         .setWhenNotExists(x => x.regulatory.isDemoVersion, x => x.regulatory.isDemoVersion = true)
@@ -465,7 +464,7 @@ aws dynamodb update-item \
 ## DeleteItem
 ```typescript
 export async function deleteItemAsync(clockRecordId: ClockRecordId): Promise<void> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const removed = await dynamoService
         .delete(clockRecordId)
         .when(x => !!x.regulatory.isDemoVersion || x.clockType === "Analog")
@@ -482,16 +481,16 @@ aws dynamodb delete-item \
 
 ## Query
 ```typescript
-export class ClockRecordsQuery extends DynamoDBRecordIndexBase<ClockRecord> {
+export class ClockRecordsQuery implements ArrowStoreTypeRecordId<ClockRecord> {
     getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
         return [new PartitionKey('ClockRecord')];
     }
 
-    getRecordTypeId(): symbol {
+    getRecordTypeId(): string {
         return RECORD_TYPES.ClockRecord;
     }
 
-    getRecordType(): Ctor<ClockRecord> {
+    getCtor(): ArrowStoreRecordCtor<ClockRecord> {
         return ClockRecord;
     }
 
@@ -513,7 +512,7 @@ export class ClockRecordsQuery extends DynamoDBRecordIndexBase<ClockRecord> {
 import {ClockRecordsQuery} from "./models";
 
 export async function queryClockRecordsAsync(): Promise<ClockRecord[]> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const queryResult = await dynamoService
         .query(new ClockRecordsQuery())
         .where(x => x.brand.startsWith("F") && x.regulatory.isDemoVersion && x.regulatory.availableInCountries.includes("USA"))
@@ -533,13 +532,9 @@ aws dynamodb query \
 ```
 ## BatchGetItem
 ```typescript
-export async function batchGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    const getRequests: GetRecordInBatchRequest[] = recordIds.map(r => {
-        recordId: r
-    });
-    
-    return await client.batchGetAsync(getRequests);
+export async function batchGetAsync(recordIds: ArrowStoreRecordId[]): Promise<DynamoDBRecord[]> {
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    return await client.batchGetAsync(recordIds);
 }
 ```
 In this BatchGetItems example, the DynamoDBService call of batchGetAsync returns the requested records, and also populate the array of GetRecordInBatchRequest with the result per requested ID for convenience.
@@ -549,17 +544,18 @@ In this BatchGetItems example, the DynamoDBService call of batchGetAsync returns
 ```typescript
 import {DynamoDBRecordIndex} from "./record";
 
-export async function batchWriteAsync(putRecord: DynamoDBRecord, deleteRecordId: DynamoDBRecordIndex): Promise<void> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+export async function batchWriteAsync(putRecord: ArrowStoreRecord, deleteRecordId: ArrowStoreRecordId): Promise<void> {
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     await client.batchWriteAsync(writer => writer.put(record).delete(deleteRecordId));
 }
 ```
 
 ## TransactWriteItem
 ```typescript
-export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecordId: DynamoDBRecordIndex): Promise<void> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
-    await client.transactWriteItems("some-idempotency-key")
+export async function transactWriteAsync(putRecord: ArrowStoreRecord, deleteRecordId: ArrowStoreRecordId): Promise<void> {
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+    await client
+        .transactWriteItems("some-idempotency-key")
         .when(new ClockRecordId("DW"), x => x.clockType === "Digital")
         .delete(new ClockRecordId("CAS123"), deleteCondition => deleteCondition.when(x => !!x.clockType))
         .put(clockRecord, putCondition => putCondition.when(x => !!x.clockType))
@@ -575,8 +571,8 @@ export async function transactWriteAsync(putRecord: DynamoDBRecord, deleteRecord
 
 ## TransactGetItem
 ```typescript
-export async function transactGetAsync(recordIds: DynamoDBRecordIndex[]): Promise<DynamoDBRecord[]> {
-    const client = new DynamoDBService(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
+export async function transactGetAsync(recordIds: ArrowStoreRecordId[]): Promise<any[]> {
+    const client = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     return await client.transactGetItemsAsync(recordIds);
 }
 ```

@@ -46,7 +46,6 @@ export class ClockRecordId implements ArrowStoreTypeRecordId<ClockRecord> {
     getTableName(): string {
         return tableName;
     }
-
 }
 
 export type CLOCK_TYPE = 'Unknown' | 'Digital' | 'Analog' | 'Hybrid';

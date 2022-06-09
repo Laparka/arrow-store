@@ -1,5 +1,5 @@
 import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
-import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
+import ArrowFunctionLexer from "../lexer/arrowFunctionLexer";
 import assert from "assert";
 import {
     BooleanExpressionNode,
@@ -14,14 +14,14 @@ import {
 import {ClockRecord} from "./models";
 
 test('Must understand inverse', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
     const predicateString = "x => x.brand.startsWith(\"Fos\") || !Object.hasOwnProperty(x.brand)";
     const tokens = lexer.tokenize(predicateString);
     const expression = parser.parse(predicateString, tokens);
 })
 test('Must parse a non-lambda expression', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
     const predicateString = "brand && brand.startsWith(\"Fos\") || !!brand";
     const tokens = lexer.tokenize(predicateString);
@@ -44,7 +44,7 @@ test('Must parse a non-lambda expression', () => {
 });
 
 test('Must build AST tree for grouped expression with a function', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => (x.brand && x.brand.startsWith("Fos") || x.brand.length === 1) || x.clockType === 'Analog' && !!x.brand;
     const predicateString = predicate.toString();
@@ -95,7 +95,7 @@ test('Must build AST tree for grouped expression with a function', () => {
 });
 
 test('Must build AST tree for ungrouped AND and OR expression', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => x.brand === 'Fossil' && x.totalSegments === 24 || x.clockType === 'Analog';
     const predicateString = predicate.toString();
@@ -130,7 +130,7 @@ test('Must build AST tree for ungrouped AND and OR expression', () => {
 });
 
 test('Must build AST tree for ungrouped OR and AND expression', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => x.brand === 'Fossil' || x.totalSegments === 24 && x.clockType === 'Analog';
     const predicateString = predicate.toString();
@@ -167,7 +167,7 @@ test('Must build AST tree for ungrouped OR and AND expression', () => {
 });
 
 test('Must build AST tree for multiple group expressions', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
     const predicate: (value: ClockRecord) => boolean = x => x.brand === 'Fossil' ||
         (
@@ -220,7 +220,7 @@ test('Must build AST tree for multiple group expressions', () => {
 });
 
 test("Must parse simple inverse group node", () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const parser = WhereCauseExpressionParser.Instance;
 
     const predicate: (value: ClockRecord) => boolean = x => !x.brand.startsWith(x.clockModel) || x.clockType === "Analog";

@@ -12,7 +12,7 @@ import {
     MathOperatorTokenVisitor, BooleanValueTokenVisitor
 } from "./tokenVisitors";
 
-export default class LambdaPredicateLexer {
+export default class ArrowFunctionLexer {
     private static readonly _TokenVisitors: TokenVisitor[] = [
         new CompareOperatorVisitor(),
         new MathOperatorTokenVisitor(),
@@ -26,7 +26,7 @@ export default class LambdaPredicateLexer {
         new ObjectTokenVisitor()
     ];
 
-    public static readonly Instance: LambdaPredicateLexer = new LambdaPredicateLexer();
+    public static readonly Instance: ArrowFunctionLexer = new ArrowFunctionLexer();
 
     private constructor() {
     }
@@ -43,7 +43,7 @@ export default class LambdaPredicateLexer {
 
         const tokens: QueryToken[] = [];
         for (let i = 0; i < query.length;) {
-            const next = LambdaPredicateLexer._visit(query, i, tokens);
+            const next = ArrowFunctionLexer._visit(query, i, tokens);
             if (next <= i) {
                 throw Error(`Infinite loop detected`);
             }

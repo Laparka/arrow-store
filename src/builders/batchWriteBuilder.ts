@@ -1,6 +1,6 @@
 import {AttributeValue, BatchWriteItemRequestMap, WriteRequests} from "aws-sdk/clients/dynamodb";
 import {ExpressionAttribute, ExpressionTransformer} from "../transformers/expressionTransformer";
-import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
+import ArrowFunctionLexer from "../lexer/arrowFunctionLexer";
 import WhereCauseExpressionParser from "../parser/whereCauseExpressionParser";
 import {WhereCauseExpressionTransformer} from "../transformers/whereCauseExpressionTransformer";
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
@@ -80,7 +80,7 @@ export class WhenExpressionBuilder<TRecord> {
             throw Error(`The record type ID is missing`);
         }
 
-        const tokens = LambdaPredicateLexer.Instance.tokenize(whereQuery);
+        const tokens = ArrowFunctionLexer.Instance.tokenize(whereQuery);
         const expression = WhereCauseExpressionParser.Instance.parse(whereQuery, tokens);
         const readingSchema = this._schemaProvider.getReadingSchema(typeId);
         return this._conditionFilterTransformer.transform(readingSchema, expression, context);

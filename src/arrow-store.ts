@@ -6,7 +6,7 @@ export * from "./builders/transactWriteBuilder";
 export * from './builders/updateBuilder';
 export * from "./builders/utils";
 
-export * from './lexer/lambdaPredicateLexer';
+export * from './lexer/arrowFunctionLexer';
 export * from './lexer/queryTokens';
 export * from './lexer/tokenVisitors';
 

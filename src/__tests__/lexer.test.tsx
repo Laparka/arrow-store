@@ -1,4 +1,4 @@
-import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
+import ArrowFunctionLexer from "../lexer/arrowFunctionLexer";
 import assert, {throws} from "assert";
 import {CLOCK_TYPE, ClockRecord} from "./models";
 
@@ -14,14 +14,14 @@ const iterate = () => {
 };
 
 test('Must return empty tokens', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     assert(lexer.tokenize("").length === 0);
     assert(lexer.tokenize("           ").length === 0);
     assert(lexer.tokenize("   \r\n   \n     ").length === 0);
 });
 
 test('Must throw exception when not a lambda expression', () => {
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     throws(() => lexer.tokenize("() => {return true}"));
     throws(() => lexer.tokenize("function() {return true}"));
 });
@@ -29,7 +29,7 @@ test('Must throw exception when not a lambda expression', () => {
 test('Must tokenize the lambda expression', () => {
     const clockType: CLOCK_TYPE = 'Analog';
     const theMostShittyBrand = 'Gar';
-    const lexer = LambdaPredicateLexer.Instance;
+    const lexer = ArrowFunctionLexer.Instance;
     const predicate: (value: ClockRecord) => boolean =
         x => !(x.brand === 'LG' || x.brand === `${theMostShittyBrand}\'ang` || x.isCertified === false) &&
             ((x.clockType === 'Digital' && x.totalSegments !== 12) || x.clockType === clockType && x.clockModel === 'FTW\'1194' && x.brand === 'Fossil')

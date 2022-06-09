@@ -1,7 +1,7 @@
 import {DynamoDBSchemaProvider} from "../mappers/schemaBuilders";
 import {DynamoDBRecordMapper} from "../mappers/recordMapper";
 import {DynamoDBClientResolver} from "../client";
-import LambdaPredicateLexer from "../lexer/lambdaPredicateLexer";
+import ArrowFunctionLexer from "../lexer/arrowFunctionLexer";
 import UpdateExpressionParser from "../parser/updateExpressionParser";
 import {UpdateExpressionTransformer} from "../transformers/updateExpressionTransformer";
 import { ExpressionTransformer} from "../transformers/expressionTransformer";
@@ -54,7 +54,7 @@ class UpdateItemBuilder<TRecord extends {}> extends WhenExpressionBuilder<TRecor
         }
 
         const updateQuery = updateExpression.toString();
-        const tokens = LambdaPredicateLexer.Instance.tokenize(updateQuery);
+        const tokens = ArrowFunctionLexer.Instance.tokenize(updateQuery);
         const node = UpdateExpressionParser.Instance.parse(updateQuery, tokens);
         const writingSchema = this._schemaProvider.getWritingSchema(this._recordId.getRecordTypeId());
         const updateExp = this._updateTransformer.transform(writingSchema, node, context);
@@ -69,8 +69,8 @@ class UpdateItemBuilder<TRecord extends {}> extends WhenExpressionBuilder<TRecor
         const memberAccessor = member.toString();
         const updateAccessor = updateExpression.toString();
 
-        const memberAccessorExprTokens = LambdaPredicateLexer.Instance.tokenize(memberAccessor);
-        const updateAccessorTokens = LambdaPredicateLexer.Instance.tokenize(updateAccessor);
+        const memberAccessorExprTokens = ArrowFunctionLexer.Instance.tokenize(memberAccessor);
+        const updateAccessorTokens = ArrowFunctionLexer.Instance.tokenize(updateAccessor);
 
         const memberExpr = UpdateExpressionParser.Instance.parse(memberAccessor, memberAccessorExprTokens);
         const updateExpr = UpdateExpressionParser.Instance.parse(updateAccessor, updateAccessorTokens);
@@ -87,7 +87,7 @@ class UpdateItemBuilder<TRecord extends {}> extends WhenExpressionBuilder<TRecor
         }
 
         const deleteQuery = expression.toString();
-        const tokens = LambdaPredicateLexer.Instance.tokenize(deleteQuery);
+        const tokens = ArrowFunctionLexer.Instance.tokenize(deleteQuery);
         const node = UpdateExpressionParser.Instance.parse(deleteQuery, tokens);
         const writingSchema = this._schemaProvider.getWritingSchema(this._recordId.getRecordTypeId());
         const destroyExp = this._updateTransformer.transform(writingSchema, node);

@@ -1,3 +1,18 @@
+<p align="center">
+	<a href="https://www.npmjs.com/package/arrow-store/"><img src="arrow-store.png" width="150" /></a>
+</p>
+
+<p align="center">
+  <a href="[https://www.npmjs.com/package/arrow-store](https://www.npmjs.com/package/arrow-store)">
+    <img src="https://img.shields.io/npm/v/arrow-store.svg" alt="npm version" >
+  </a>
+  <a href="https://github.com/Laparka/arrow-store/blob/master/LICENSE.">
+    <img src="https://img.shields.io/npm/l/arrow-store.svg" alt="license">
+  </a>
+</p>
+
+<h1 align="center">ArrowStore</h1>
+
 # ArrowStore
 ```shell
 npm i arrow-store

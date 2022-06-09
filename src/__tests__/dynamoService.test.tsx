@@ -3,8 +3,8 @@ import {ClockRecord, ClockRecordId, ClocksQuery} from "./models";
 import {ClockRecordMappingProfile} from "./clockRecordMappingProfile";
 import {DynamoDB, SharedIniFileCredentials} from "aws-sdk";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
-import DynamoDBMappingBuilder from "../mappers/mappingBuilder";
 import assert from "assert";
+import {DynamoDBMappingBuilder} from "../mappers/schemaBuilders";
 
 class AppDynamoDBClientResolver implements DynamoDBClientResolver {
     resolve(): DynamoDB {

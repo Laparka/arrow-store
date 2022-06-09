@@ -1,9 +1,9 @@
-import DynamoDBMappingBuilder from "../mappers/mappingBuilder";
 import {ClockRecordSchemaSource, ClockRecordMappingProfile } from "./clockRecordMappingProfile";
 import {ClockRecord, RECORD_TYPES} from "./models";
 import {DefaultDynamoDBRecordMapper} from "../mappers/recordMapper";
 import assert from "assert";
 import {AttributeMap} from "aws-sdk/clients/dynamodb";
+import {DynamoDBMappingBuilder} from "../mappers/schemaBuilders";
 
 test("Must build mapping schema provider", () => {
     const schemaBuilder = new DynamoDBMappingBuilder();

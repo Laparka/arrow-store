@@ -10,8 +10,6 @@ export * from './lexer/arrowFunctionLexer';
 export * from './lexer/queryTokens';
 export * from './lexer/tokenVisitors';
 
-export * from './mappers/attributeSchemaBuilder';
-export * from './mappers/mappingBuilder';
 export * from './mappers/recordMapper';
 export * from './mappers/schemaBuilders';
 

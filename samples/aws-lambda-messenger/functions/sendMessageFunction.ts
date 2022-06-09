@@ -3,11 +3,12 @@ import {MessageRecord} from "../records/messageRecord";
 import {
     DefaultDynamoDBRecordMapper,
     DynamoDBClientResolver,
-    DynamoDBService
+    DefaultDynamoDBClient
 } from "arrow-store";
 import {DynamoDB, EnvironmentCredentials} from "aws-sdk";
 import {AppMappingProfile} from "../records/appMappingProfile";
 import {UserRecordId} from "../records/userRecord";
+import DynamoDBMappingBuilder from "arrow-store/lib/mappers/mappingBuilder";
 
 const resolver: DynamoDBClientResolver = {
     resolve(): DynamoDB {

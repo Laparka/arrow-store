@@ -4,6 +4,7 @@ npm i arrow-store
 ```
 
 ArrowStore is an extensible TypeScript object-relational mapper for AWS DynamoDB that simplifies the DynamoDB API usage for developers.  
+See the working version of [AWS Lambda Sample project](/samples) code to play and deploy in your environment.
 
 ArrowStore allows developers to:
 * Map a received set of DynamoDB AttributeValues to an object

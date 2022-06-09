@@ -10,7 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/aws-lambda": "^8.10.97",
-    "arrow-store": "^0.0.9",
+    "arrow-store": "^1.0.0",
     "aws-sdk": "^2.1148.0",
     "tslib": "^2.4.0"
   }

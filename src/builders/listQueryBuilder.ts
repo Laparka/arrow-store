@@ -107,28 +107,30 @@ export class DynamoDBListQueryBuilder<TRecord> extends WhenExpressionBuilder<TRe
             throw Error(`The query attributes are missing`);
         }
 
-        queryInput.KeyConditionExpression = this._toQueryKeyExpression(primaryKeys, queryInput);
+        queryInput.KeyConditionExpression = DynamoDBListQueryBuilder._toQueryKeyExpression(primaryKeys, queryInput);
         const client = this._clientResolver.resolve();
         let response: QueryOutput | null = null;
         const records: TRecord[] = [];
         const recordTypeId = this._recordQuery.getRecordTypeId();
-        while (this._limit === undefined || records.length < this._limit) {
+        do {
             response = await client.query(queryInput).promise();
             if (response.Items && response.Count && response.Count > 0) {
                 response.Items.forEach(attribute => {
-                    if (attribute && Object.getOwnPropertyNames(attribute).length === 0) {
-                        records.push(this._recordMapper.toRecord<TRecord>(recordTypeId, attribute));
+                    if (attribute && Object.getOwnPropertyNames(attribute).length !== 0) {
+                        if (!this._limit || records.length < this._limit) {
+                            records.push(this._recordMapper.toRecord<TRecord>(recordTypeId, attribute));
+                        }
                     }
                 });
             }
 
-            if (response.LastEvaluatedKey) {
+            if (response.LastEvaluatedKey && Object.getOwnPropertyNames(response.LastEvaluatedKey).length !== 0) {
                 queryInput.ExclusiveStartKey = response.LastEvaluatedKey;
-                continue;
             }
-
-            break;
-        }
+            else {
+                break;
+            }
+        } while(queryInput.ExclusiveStartKey && (!this._limit || records.length < this._limit));
 
         return {
             lastKey: response ? this._fromLastEvaluatedKey(response.LastEvaluatedKey) : null,
@@ -167,7 +169,7 @@ export class DynamoDBListQueryBuilder<TRecord> extends WhenExpressionBuilder<TRe
         };
     }
 
-    private _toQueryKeyExpression(primaryKeys: ReadonlyArray<PrimaryAttributeValue>, input: RequestInput): string {
+    private static _toQueryKeyExpression(primaryKeys: ReadonlyArray<PrimaryAttributeValue>, input: RequestInput): string {
         const expressions: string[] = [];
         for (let i = 0; i < primaryKeys.length; i++) {
             expressions.push(toKeyAttributeExpression(primaryKeys[i], input));

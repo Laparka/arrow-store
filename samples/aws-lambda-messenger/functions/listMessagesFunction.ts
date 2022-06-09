@@ -1,6 +1,5 @@
 import {APIGatewayEvent, APIGatewayProxyResult, Context} from "aws-lambda";
-import {MessageRecord, UserMessagesQuery} from "../records/messageRecord";
-import {UserRecordId} from "../records/userRecord";
+import {UserMessagesQuery} from "../records/messageRecord";
 import {DynamoDBClient} from "../initDynamoClient";
 
 export const handler = async (event: APIGatewayEvent, context: Context): Promise<APIGatewayProxyResult> => {
@@ -10,13 +9,19 @@ export const handler = async (event: APIGatewayEvent, context: Context): Promise
             throw Error(`The user ID is missing`);
         }
 
-        const messages = await DynamoDBClient
-            .query(new UserMessagesQuery(event.pathParameters["contact_id"]))
-            .where(x => !!x.viewedBy)
-            .listAsync();
+        let query = DynamoDBClient
+            .query(new UserMessagesQuery(event.pathParameters["contact_id"]));
+        if (event.queryStringParameters) {
+            const search = event.queryStringParameters["search"];
+            if (search) {
+                query = query.where((x, context) => x.message.includes(context.search), {search: search});
+            }
+        }
+
+        const messages = await query.listAsync();
         return {
             statusCode: 200,
-            body: JSON.stringify({messages: messages})
+            body: JSON.stringify({messages: messages.records})
         }
     }
     catch (e) {

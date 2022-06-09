@@ -84,12 +84,12 @@ test("Must get batch items", async () => {
 test("Must query clock records from DynamoDB", async () => {
     const dynamoService = new DefaultDynamoDBClient(new AppDynamoDBClientResolver(), schemaProvider, new DefaultDynamoDBRecordMapper(schemaProvider));
     const params = {
-        store: 'Amazon'
+        brand: 'Fossil'
     };
     const query = dynamoService
         .query(new ClocksQuery())
-        .where((x, ctx) => x.clockType === "Hybrid", params)
-        .take(1)
+        .where((x, ctx) => x.clockType === "Hybrid" || x.brand.includes(ctx.brand), params)
+        .take(10)
         .sortByAscending();
     const clockRecords = await query.listAsync()
     assert(!!clockRecords);
@@ -101,6 +101,7 @@ test("Must build a complex query", async () => {
     const params = {
         store: 'Amazon'
     };
+
     const query = dynamoService
         .query(new ClocksQuery())
         .where((x, ctx) => x.isCertified || x.eligibleInCountries.includes("USA") || x.availableInStores.length > 0 && x.clockType === "Hybrid" && (x.isCertified || x.availableInStores.includes(ctx.store)) || !x.clockDetails || !!x.clockDetails && x.clockDetails.serialNumber.startsWith("US"), params)

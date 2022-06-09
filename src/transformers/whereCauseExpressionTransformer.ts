@@ -102,7 +102,7 @@ export class WhereCauseExpressionTransformer extends ExpressionTransformerBase i
             case "ObjectAccessor": {
                 const expandedExpr = this._tryExpandSyntaxSugar(expression, context);
                 if (expandedExpr.nodeType === "ObjectAccessor") {
-                    throw Error(`The expression ${expression.nodeType} is not a boolean value check or attribute_exists: ${(<ObjectAccessorNode>expression).value}`);
+                    throw Error(`The expression ${expandedExpr.nodeType} is not a boolean value check or attribute_exists: ${(<ObjectAccessorNode>expression).value}`);
                 }
 
                 this._visitRootNode(expandedExpr, context);

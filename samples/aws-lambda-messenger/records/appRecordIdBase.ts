@@ -39,7 +39,7 @@ export class RangeAttributeValue implements PrimaryAttributeValue {
     }
 
     getAttributeName(): string {
-        return "Id";
+        return "RecordId";
     }
 
     getAttributeType(): DYNAMODB_ATTRIBUTE_TYPE {
@@ -67,9 +67,9 @@ export abstract class AppRecordIdBase<TRecord extends ArrowStoreRecord> implemen
     abstract getIndexName(): string | undefined;
 
     getTableName(): string {
-        const tableName = process.env["APP_TABLE"];
+        const tableName = process.env["DYNAMODB_TABLE"];
         if (!tableName) {
-            throw Error(`The APP_TABLE Environment variable is not provided for the Lambda Function configuration`);
+            throw Error(`The DYNAMODB_TABLE Environment variable is not provided for the Lambda Function configuration`);
         }
 
         return tableName;

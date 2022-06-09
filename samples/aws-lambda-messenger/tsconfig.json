@@ -14,7 +14,7 @@
     "strict": true,
     "suppressImplicitAnyIndexErrors": true,
     "allowJs": true,
-    "sourceRoot": "./src/"
+    "sourceRoot": "./samples/aws-lambda-messenger"
   },
   "exclude": ["node_modules", "build"]
 }

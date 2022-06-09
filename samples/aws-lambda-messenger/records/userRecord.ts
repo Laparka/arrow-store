@@ -42,6 +42,7 @@ export class UserRecord implements ArrowStoreTypeRecord<UserRecordId> {
 
     userId: string;
     isActive: boolean;
+    expiresIn: number | undefined;
 
     getRecordId(): ArrowStoreRecordId {
         return new UserRecordId(this.userId);

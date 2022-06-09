@@ -1,0 +1,17 @@
+{
+  "name": "aws-lambda-messenger",
+  "version": "1.0.0",
+  "description": "A sample messenger project based on AWS Lambda, which uses the ArrowStore library to access the DynamoDB",
+  "keywords": [
+    "ArrowStore",
+    "AWS Lambda"
+  ],
+  "author": "Marat Sultangareev",
+  "license": "ISC",
+  "dependencies": {
+    "@types/aws-lambda": "^8.10.97",
+    "arrow-store": "^0.0.7",
+    "aws-sdk": "^2.1148.0",
+    "tslib": "^2.4.0"
+  }
+}

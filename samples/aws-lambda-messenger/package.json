@@ -2,28 +2,31 @@
   "name": "aws-lambda-messenger",
   "version": "1.0.0",
   "description": "A sample messenger project based on AWS Lambda, which uses the ArrowStore library to access the DynamoDB",
-  "main": "build/index.js",
+  "main": "index.js",
   "scripts": {
-    "compile": "tsc"
+    "clean": "rimraf build/ & rimraf deploy/.aws/",
+    "pack": "npm run clean && tsc && copyfiles -f deploy/package.json build/",
+    "build": "npm run pack && cd build && npm i && cd..",
+    "deploy": "npm run build && cd deploy && mkdir .aws && aws cloudformation package --template-file template.yml --output-template-file .aws/packaged.template.yml --s3-bucket triviaapp-dev-serverlessdeploymentbucket-1cuszpbeuol0z --region us-west-2 --profile arrow-store-integration & aws cloudformation deploy --template-file .aws/packaged.template.yml --stack-name arrow-store-sample-app --capabilities CAPABILITY_IAM --region us-west-2 --profile arrow-store-integration && cd .."
   },
   "keywords": [
     "ArrowStore",
-    "AWS",
-    "Lambda",
-    "DynamoDB",
-    "ORM"
+    "AWS Lambda"
   ],
   "author": "Marat Sultangareev",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^17.0.39",
-    "aws-sdk": "^2.1148.0",
+    "copyfiles": "^2.4.1",
     "core-js": "^3.19.0",
+    "rimraf": "^3.0.2",
     "ts-node": "^10.4.0",
     "typescript": "^4.7.3"
   },
   "dependencies": {
     "@types/aws-lambda": "^8.10.97",
-    "arrow-store": "^0.0.6"
+    "arrow-store": "^0.0.7",
+    "aws-sdk": "^2.1148.0",
+    "tslib": "^2.4.0"
   }
 }

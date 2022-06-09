@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+Description: "ArrowStore Sample Application"
+
+Globals:
+  Api:
+    TracingEnabled: true
+    MethodSettings:
+      -
+        DataTraceEnabled: false
+        HttpMethod: "*"
+        LoggingLevel: INFO
+        ResourcePath: "/*"
+        MetricsEnabled: true
+  Function:
+    MemorySize: 256
+    Runtime: nodejs16.x
+    Timeout: 15
+    AutoPublishAlias: "prod"
+    Environment:
+      Variables:
+        UNWRAP_AGGREGATE_EXCEPTIONS: 1
+
+Resources:
+  LogStreamAccess:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description: "Allows to create and write to log streams in CloudWatch"
+      Path:
+        "Fn::Sub": "/arrow-store/sample/groups/"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: "Allow"
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:DescribeLogGroups"
+              - "logs:DescribeLogStreams"
+              - "logs:GetLogEvents"
+              - "logs:FilterLogEvents"
+            Resource:
+              - "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:*:*"
+          -
+            Effect: "Allow"
+            Action:
+              - "logs:PutLogEvents"
+            Resource:
+              - "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*:*:*"
+          -
+            Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+            Resource: "*"
+
+  DynamoDBAccess:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Description: "Allows reading DynamoDB tables"
+      Path:
+        "Fn::Sub": "/arrow-store/sample/groups/"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'dynamodb:GetItem'
+              - 'dynamodb:Scan'
+              - 'dynamodb:Query'
+              - 'dynamodb:BatchGetItem'
+              - 'dynamodb:DescribeTable'
+              - 'dynamodb:PutItem'
+              - 'dynamodb:UpdateItem'
+              - 'dynamodb:BatchWriteItem'
+              - 'dynamodb:DeleteItem'
+              - 'dynamodb:ConditionCheckItem'
+            Resource:
+              - "Fn::GetAtt": [ArrowStoreSampleTable, Arn]
+              - "Fn::Sub":
+                  - "${TableArn}/index/*"
+                  - TableArn:
+                      "Fn::GetAtt": [ArrowStoreSampleTable, Arn]
+
+  LambdaDefaultRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/arrow-store-sample/roles/"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - Ref: LogStreamAccess
+        - Ref: DynamoDBAccess
+
+  ArrowStoreSampleTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      AttributeDefinitions:
+        -
+          AttributeName: Namespace
+          AttributeType: S
+        -
+          AttributeName: RecordId
+          AttributeType: S
+      KeySchema:
+        -
+          AttributeName: Namespace
+          KeyType: HASH
+        -
+          AttributeName: RecordId
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        -
+          Key: "Project"
+          Value: "ArrowStoreSample"
+
+  RegisterUserFunction:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      CodeUri: ../build/
+      Handler: ./functions/registerUserFunction.handler
+      Runtime: nodejs12.x
+      Role:
+        "Fn::GetAtt": [LambdaDefaultRole, Arn]
+      Environment:
+        Variables:
+          DYNAMODB_TABLE:
+            Ref: ArrowStoreSampleTable
+      Events:
+        ApiHandler:
+          Type: Api
+          Properties:
+            Path: /users
+            Method: post
+
+  DeleteUserFunction:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      CodeUri: ../build/
+      Handler: ./functions/deleteUserFunction.handler
+      Runtime: nodejs12.x
+      Role:
+        "Fn::GetAtt": [LambdaDefaultRole, Arn]
+      Environment:
+        Variables:
+          DYNAMODB_TABLE:
+            Ref: ArrowStoreSampleTable
+      Events:
+        ApiHandler:
+          Type: Api
+          Properties:
+            Path: /users/{user_id}
+            Method: delete
+
+  SendMessageFunction:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      CodeUri: ../build/
+      Handler: ./functions/sendMessageFunction.handler
+      Runtime: nodejs12.x
+      Role:
+        "Fn::GetAtt": [ LambdaDefaultRole, Arn ]
+      Environment:
+        Variables:
+          DYNAMODB_TABLE:
+            Ref: ArrowStoreSampleTable
+      Events:
+        ApiHandler:
+          Type: Api
+          Properties:
+            Path: /{contact_id}/messages
+            Method: post
+
+  ListMessageFunction:
+    Type: "AWS::Serverless::Function"
+    Properties:
+      CodeUri: ../build/
+      Handler: ./functions/listMessagesFunction.handler
+      Runtime: nodejs12.x
+      Role:
+        "Fn::GetAtt": [ LambdaDefaultRole, Arn ]
+      Environment:
+        Variables:
+          DYNAMODB_TABLE:
+            Ref: ArrowStoreSampleTable
+      Events:
+        ApiHandler:
+          Type: Api
+          Properties:
+            Path: /{contact_id}/messages
+            Method: get

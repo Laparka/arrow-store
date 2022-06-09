@@ -61,3 +61,31 @@ export class MessageRecord implements ArrowStoreTypeRecord<MessageRecordId> {
         return new MessageRecordId(this.contactId, this.messageId);
     }
 }
+
+export class UserMessagesQuery extends AppRecordIdBase<MessageRecord> {
+    private readonly _userId: string;
+    constructor(userId: string) {
+        super();
+        this._userId = userId;
+    }
+
+    getCtor(): ArrowStoreRecordCtor<MessageRecord> | undefined {
+        return MessageRecord;
+    }
+
+    getIndexName(): string | undefined {
+        return undefined;
+    }
+
+    getPrimaryKeys(): ReadonlyArray<PrimaryAttributeValue> {
+        return [new PartitionAttributeValue(`MessageRecord#${this._userId}`)];
+    }
+
+    getRecordTypeId(): string {
+        return MessageRecordTypeId;
+    }
+
+    isConsistentRead(): boolean {
+        return false;
+    }
+}

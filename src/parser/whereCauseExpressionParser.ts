@@ -137,6 +137,22 @@ export default class WhereCauseExpressionParser implements ExpressionParser {
                 iterator.index++;
                 return new UndefinedValueNode();
             }
+
+            case "MathOperator": {
+                const operator = iterator.stringify(token);
+                if(operator !== '-') {
+                    throw Error(`Only negate operator is supported within the where-predicate: '${operator}'`);
+                }
+
+                iterator.index++;
+                const value = this._value(iterator);
+                if (value.nodeType !== "ConstantValue") {
+                    throw Error(`Only constant numeric value is supported to negate: '${value.nodeType}'`);
+                }
+
+                const constValue = <ConstantValueNode>value;
+                return new ConstantValueNode(`-${constValue.value}`);
+            }
         }
 
         throw Error(`Expected an object accessor or a value token, but received ${iterator.stringify(token)}`);

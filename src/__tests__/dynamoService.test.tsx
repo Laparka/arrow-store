@@ -88,7 +88,7 @@ test("Must query clock records from DynamoDB", async () => {
     };
     const query = dynamoService
         .query(new ClocksQuery())
-        .where((x, ctx) => x.clockType === "Hybrid" || x.brand.includes(ctx.brand), params)
+        .where((x, ctx) => x.clockType === "Hybrid" || x.brand.includes(ctx.brand) || !!x.reviewScore && x.reviewScore >= -1, params)
         .take(10)
         .sortByAscending();
     const clockRecords = await query.listAsync()

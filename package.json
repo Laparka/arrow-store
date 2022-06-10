@@ -1,6 +1,6 @@
 {
   "name": "arrow-store",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript DynamoDB ORM",
   "main": "lib/arrow-store.node.cjs.js",
   "types": "lib/arrow-store.d.ts",

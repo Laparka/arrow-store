@@ -1,6 +1,6 @@
 {
   "name": "arrow-store",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "TypeScript DynamoDB ORM",
   "main": "lib/arrow-store.node.cjs.js",
   "types": "lib/arrow-store.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/Laparka/arrow-store#readme",
   "files": [
-    "lib",
+    "lib/**/*",
     "LICENSE",
     "README.md"
   ],
